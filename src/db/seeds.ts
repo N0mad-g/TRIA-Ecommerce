@@ -5,11 +5,16 @@ import { categoryTable, productTable } from "./schema";
 
 // ✅ Imagens temporárias (depois você substitui pelas suas na Vercel)
 const productImages = {
-  "Tônico Capilar": "/products/tonico-capilar.jpg",
-  "Shampoo Antiqueda": "/products/shampoo-antiqueda.jpg",
-  "Óleo para Barba": "/products/oleo-barba.jpg",
-  "Balm para Barba": "/products/balm-barba.jpg",
-  "Pomada Fix Carnaúba": "/products/pomada-carnauba.jpg",
+  "Tônico Capilar":
+    "https://qocdohzlqpfhzyum.public.blob.vercel-storage.com/tonico-capilar.jpeg",
+  "Shampoo Antiqueda":
+    "https://qocdohzlqpfhzyum.public.blob.vercel-storage.com/shampoo-antiqueda.jpeg",
+  "Óleo para Barba":
+    "https://qocdohzlqpfhzyum.public.blob.vercel-storage.com/oleo-barba.jpeg",
+  "Balm para Barba":
+    "https://qocdohzlqpfhzyum.public.blob.vercel-storage.com/balm-barba.jpeg",
+  "Pomada Fix Carnaúba":
+    "https://qocdohzlqpfhzyum.public.blob.vercel-storage.com/pomada-carnauba.jpeg",
 };
 
 function generateSlug(name: string): string {
