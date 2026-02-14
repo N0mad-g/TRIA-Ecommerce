@@ -40,7 +40,7 @@ const ProductPage = async ({ params }: ProductPageProps) => {
       <div className="flex flex-col space-y-6">
         {/* Imagem do produto */}
         <Image
-          src={product.imageUrl}
+          src={product.imageUrl.trim()}
           alt={product.name}
           sizes="100vw"
           height={0}

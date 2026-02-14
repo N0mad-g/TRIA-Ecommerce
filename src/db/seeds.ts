@@ -157,6 +157,8 @@ async function main() {
         productImages[productData.name as keyof typeof productImages] ||
         "/products/placeholder.jpg";
 
+      const trimmedImageUrl = imageUrl.trim();
+
       console.log(
         `  💼 Criando produto: ${productData.name} (${productData.volume})`,
       );
@@ -169,7 +171,7 @@ async function main() {
         categoryId: categoryId,
         volume: productData.volume,
         priceInCents: productData.priceInCents,
-        imageUrl: imageUrl,
+        imageUrl: trimmedImageUrl,
         ingredients: productData.ingredients,
         benefits: productData.benefits,
         stock: productData.stock,

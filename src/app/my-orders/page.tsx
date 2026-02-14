@@ -34,6 +34,12 @@ const MyOrdersPage = async () => {
         <Orders
           orders={orders.map((order) => ({
             id: order.id,
+            shortId:
+              order.shortId ??
+              order.id
+                .replace(/[^A-Za-z0-9]/g, "")
+                .toUpperCase()
+                .slice(0, 4),
             totalPriceInCents: order.totalPriceInCents,
             status: order.status,
             createdAt: order.createdAt,

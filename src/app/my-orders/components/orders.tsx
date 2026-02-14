@@ -17,6 +17,7 @@ import { formatCentsToBRL } from "@/lib/helpers/money";
 interface OrdersProps {
   orders: Array<{
     id: string;
+    shortId: string;
     totalPriceInCents: number;
     status: (typeof orderTable.$inferSelect)["status"];
     createdAt: Date;
@@ -38,6 +39,12 @@ const Orders = ({ orders }: OrdersProps) => {
         return <Badge className="bg-green-500">Pago</Badge>;
       case "pending":
         return <Badge variant="outline">Aguardando pagamento</Badge>;
+      case "processing":
+        return <Badge className="bg-blue-500">Em processamento</Badge>;
+      case "shipped":
+        return <Badge className="bg-amber-500">Enviado</Badge>;
+      case "delivered":
+        return <Badge className="bg-emerald-600">Entregue</Badge>;
       case "canceled":
         return <Badge variant="destructive">Cancelado</Badge>;
       default:
@@ -55,6 +62,9 @@ const Orders = ({ orders }: OrdersProps) => {
                 <AccordionTrigger className="px-6 py-4">
                   <div className="flex w-full items-center justify-between">
                     <div className="flex flex-col items-start gap-2">
+                      <p className="text-sm font-semibold">
+                        Pedido #{order.shortId}
+                      </p>
                       {getStatusBadge(order.status)}
                       <p className="text-muted-foreground text-sm">
                         Pedido feito em{" "}
@@ -83,7 +93,7 @@ const Orders = ({ orders }: OrdersProps) => {
                         <div className="flex items-center gap-4">
                           <div className="relative h-20 w-20 overflow-hidden rounded-lg">
                             <Image
-                              src={product.imageUrl}
+                              src={product.imageUrl.trim()}
                               alt={product.productName}
                               fill
                               className="object-cover"

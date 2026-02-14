@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 import { Header } from "@/components/common/header";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,11 @@ import {
 } from "@/components/ui/dialog";
 
 const CheckoutSuccessPage = () => {
+  const searchParams = useSearchParams();
+  const shortIdParam = searchParams.get("shortId");
+  const shortId =
+    shortIdParam && /^[A-Z0-9]{4}$/.test(shortIdParam) ? shortIdParam : null;
+
   return (
     <>
       <Header />
@@ -31,6 +37,9 @@ const CheckoutSuccessPage = () => {
             Seu pedido foi efetuado com sucesso. Você pode acompanhar o status
             na seção de “Meus Pedidos”.
           </DialogDescription>
+          {shortId && (
+            <p className="text-lg font-semibold">Pedido #{shortId}</p>
+          )}
 
           <DialogFooter>
             <Button className="rounded-full" size="lg" asChild>

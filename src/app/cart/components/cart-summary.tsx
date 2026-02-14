@@ -53,7 +53,7 @@ const CartSummary = ({
           <div className="flex items-center justify-between" key={product.id}>
             <div className="flex items-center gap-4">
               <Image
-                src={product.imageUrl}
+                src={product.imageUrl.trim()}
                 alt={product.name}
                 width={78}
                 height={78}

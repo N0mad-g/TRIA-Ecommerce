@@ -17,7 +17,7 @@ const ProductItem = ({ product }: ProductItemProps) => {
   return (
     <Link href={`/product/${product.slug}`} className="flex flex-col gap-4">
       <Image
-        src={product.imageUrl}
+        src={product.imageUrl.trim()}
         alt={product.name}
         width={200}
         height={200}

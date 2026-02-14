@@ -73,7 +73,7 @@ export const CartItem = ({
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-4">
         <Image
-          src={productImageUrl}
+          src={productImageUrl.trim()}
           alt={productName}
           width={78}
           height={78}

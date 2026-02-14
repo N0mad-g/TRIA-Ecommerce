@@ -2,6 +2,7 @@ import { relations } from "drizzle-orm";
 import {
   boolean,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   text,
@@ -208,11 +209,15 @@ export const cartItemRelations = relations(cartItemTable, ({ one }) => ({
 export const orderStatus = pgEnum("order_status", [
   "pending",
   "paid",
+  "processing",
+  "shipped",
+  "delivered",
   "canceled",
 ]);
 
 export const orderTable = pgTable("order", {
   id: uuid().primaryKey().defaultRandom(),
+  shortId: text("short_id").unique(),
   userId: text("user_id")
     .notNull()
     .references(() => userTable.id, { onDelete: "cascade" }),
@@ -233,6 +238,23 @@ export const orderTable = pgTable("order", {
   cpfOrCnpj: text().notNull(),
   totalPriceInCents: integer("total_price_in_cents").notNull(),
   status: orderStatus().notNull().default("pending"),
+  emailNotifications: jsonb("email_notifications")
+    .default({
+      orderCreated: false,
+      paymentPending: false,
+      paymentApproved: false,
+      processing: false,
+      shipped: false,
+      delivered: false,
+    })
+    .$type<{
+      orderCreated: boolean;
+      paymentPending: boolean;
+      paymentApproved: boolean;
+      processing: boolean;
+      shipped: boolean;
+      delivered: boolean;
+    }>(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
