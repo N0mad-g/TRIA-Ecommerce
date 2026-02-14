@@ -28,7 +28,7 @@ const Home = async () => {
         {/* Banner Principal */}
         <div className="px-5">
           <Image
-            src="/banner-01.png"
+            src="/Banner-01.png"
             alt="Resultados visíveis com ativos potentes"
             height={0}
             width={0}
@@ -48,7 +48,7 @@ const Home = async () => {
         {/* Banner Secundário */}
         <div className="px-5">
           <Image
-            src="/banner-02.png"
+            src="/Banner-02.jpeg"
             alt="Cuide da sua barba com estilo"
             height={0}
             width={0}
