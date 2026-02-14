@@ -21,43 +21,50 @@ export const POST = async (request: Request) => {
     signature,
     process.env.STRIPE_WEBHOOK_SECRET,
   );
+
   if (
-    event.type === "checkout.session.completed" ||
-    event.type === "checkout.session.async_payment_pending"
+    event.type !== "checkout.session.completed" &&
+    event.type !== "checkout.session.async_payment_succeeded"
   ) {
-    const session = event.data.object as Stripe.Checkout.Session;
-    const orderId = session.metadata?.orderId;
-    if (!orderId) {
-      return NextResponse.error();
-    }
-
-    if (event.type === "checkout.session.async_payment_pending") {
-      await db
-        .update(orderTable)
-        .set({
-          status: "pending",
-        })
-        .where(eq(orderTable.id, orderId));
-
-      await sendOrderEmail({
-        orderId,
-        type: "payment-pending",
-      });
-    }
-
-    if (event.type === "checkout.session.completed") {
-      await db
-        .update(orderTable)
-        .set({
-          status: "paid",
-        })
-        .where(eq(orderTable.id, orderId));
-
-      await sendOrderEmail({
-        orderId,
-        type: "payment-approved",
-      });
-    }
+    return NextResponse.json({ received: true });
   }
+
+  const session = event.data.object as Stripe.Checkout.Session;
+  const orderId = session.metadata?.orderId;
+  if (!orderId) {
+    return NextResponse.error();
+  }
+
+  if (
+    event.type === "checkout.session.completed" &&
+    session.payment_status !== "paid"
+  ) {
+    await db
+      .update(orderTable)
+      .set({
+        status: "pending",
+      })
+      .where(eq(orderTable.id, orderId));
+
+    await sendOrderEmail({
+      orderId,
+      type: "payment-pending",
+    });
+
+    return NextResponse.json({ received: true });
+  }
+
+  await db
+    .update(orderTable)
+    .set({
+      status: "paid",
+    })
+    .where(eq(orderTable.id, orderId));
+
+  await sendOrderEmail({
+    orderId,
+    type: "payment-approved",
+  });
+
   return NextResponse.json({ received: true });
 };
