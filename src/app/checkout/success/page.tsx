@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 
 import { Header } from "@/components/common/header";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-const CheckoutSuccessPage = () => {
+const CheckoutSuccessContent = () => {
   const searchParams = useSearchParams();
   const shortIdParam = searchParams.get("shortId");
   const shortId =
@@ -57,6 +58,14 @@ const CheckoutSuccessPage = () => {
         </DialogContent>
       </Dialog>
     </>
+  );
+};
+
+const CheckoutSuccessPage = () => {
+  return (
+    <Suspense fallback={null}>
+      <CheckoutSuccessContent />
+    </Suspense>
   );
 };
 
