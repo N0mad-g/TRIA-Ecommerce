@@ -1,15 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { db } from "@/db";
+import { melhorEnvioTokenTable } from "@/db/schema";
+
+type MelhorEnvioOAuthResponse = {
+  access_token?: string;
+  refresh_token?: string;
+  expires_in?: number;
+  error?: string;
+  error_description?: string;
+};
+
 export async function GET(req: NextRequest) {
-  const code = req.nextUrl.searchParams.get("code");
+  try {
+    const code = req.nextUrl.searchParams.get("code");
 
-  if (!code) {
-    return NextResponse.json({ error: "Code não recebido" }, { status: 400 });
-  }
+    if (!code) {
+      return NextResponse.json({ error: "Code não recebido" }, { status: 400 });
+    }
 
-  const response = await fetch(
-    "https://sandbox.melhorenvio.com.br/oauth/token",
-    {
+    const tokenUrl =
+      process.env.MELHOR_ENVIO_SANDBOX === "true"
+        ? "https://sandbox.melhorenvio.com.br/oauth/token"
+        : "https://melhorenvio.com.br/oauth/token";
+
+    console.log("[Melhor Envio Callback] Iniciando troca de code por token");
+
+    const response = await fetch(tokenUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -20,12 +37,52 @@ export async function GET(req: NextRequest) {
         client_secret: process.env.MELHOR_ENVIO_CLIENT_SECRET,
         redirect_uri:
           "https://preornamental-mina-nutritively.ngrok-free.dev/api/melhorenvio/callback",
-        code: code,
+        code,
       }),
-    },
-  );
+    });
 
-  const data = await response.json();
+    const data = (await response.json()) as MelhorEnvioOAuthResponse;
 
-  return NextResponse.json(data);
+    if (!response.ok) {
+      console.error("[Melhor Envio Callback] Erro ao obter token:", data);
+      return NextResponse.json(
+        {
+          error: data.error ?? "Erro ao obter token do Melhor Envio",
+          details: data.error_description,
+        },
+        { status: 400 },
+      );
+    }
+
+    if (!data.access_token || !data.refresh_token || !data.expires_in) {
+      console.error("[Melhor Envio Callback] Payload inválido:", data);
+      return NextResponse.json(
+        { error: "Resposta de token inválida do Melhor Envio" },
+        { status: 500 },
+      );
+    }
+
+    const expiresAt = new Date(Date.now() + data.expires_in * 1000);
+
+    await db.delete(melhorEnvioTokenTable);
+    await db.insert(melhorEnvioTokenTable).values({
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token,
+      expiresAt,
+      updatedAt: new Date(),
+    });
+
+    console.log("[Melhor Envio Callback] Tokens salvos com sucesso");
+
+    return NextResponse.json({
+      success: true,
+      message: "Autenticação do Melhor Envio concluída com sucesso",
+    });
+  } catch (error) {
+    console.error("[Melhor Envio Callback] Erro inesperado:", error);
+    return NextResponse.json(
+      { error: "Falha ao processar callback do Melhor Envio" },
+      { status: 500 },
+    );
+  }
 }

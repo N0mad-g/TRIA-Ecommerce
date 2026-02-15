@@ -76,6 +76,15 @@ export const verificationTable = pgTable("verification", {
   updatedAt: timestamp("updated_at").$defaultFn(() => new Date()),
 });
 
+export const melhorEnvioTokenTable = pgTable("melhor_envio_token", {
+  id: uuid().primaryKey().defaultRandom(),
+  accessToken: text("access_token").notNull(),
+  refreshToken: text("refresh_token").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // ===== TABELAS DE PRODUTOS (ADAPTADO PRO CLIENTE) =====
 
 export const categoryTable = pgTable("category", {
