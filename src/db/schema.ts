@@ -256,6 +256,16 @@ export const orderTable = pgTable("order", {
       delivered: boolean;
     }>(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+
+  // Frete
+  shippingInCents: integer("shipping_in_cents").default(0),
+  shippingMethod: text("shipping_method"), // "PAC", "SEDEX"
+  shippingCarrier: text("shipping_carrier"), // "Correios"
+
+  // Rastreamento
+  melhorEnvioOrderId: text("melhor_envio_order_id"), // ID no Melhor Envio
+  trackingCode: text("tracking_code"), // Código de rastreio
+  shippingLabelUrl: text("shipping_label_url"), // URL da etiqueta
 });
 
 export const orderRelations = relations(orderTable, ({ one, many }) => ({
