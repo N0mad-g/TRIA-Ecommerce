@@ -32,12 +32,21 @@ const ConfirmationPage = async () => {
   if (!cart || cart?.items.length === 0) {
     redirect("/");
   }
+
+  console.log("📦 Cart shipping data:", {
+    shippingMethod: cart.shippingMethod,
+    shippingInCents: cart.shippingInCents,
+  });
+
   const cartTotalInCents = cart.items.reduce(
     (acc, item) => acc + item.product.priceInCents * item.quantity,
     0,
   );
   if (!cart.shippingAddress) {
     redirect("/cart/identification");
+  }
+  if (!cart.shippingMethod || cart.shippingInCents <= 0) {
+    redirect("/cart/identification?shippingRequired=1");
   }
   return (
     <div>
@@ -51,6 +60,9 @@ const ConfirmationPage = async () => {
             <Card>
               <CardContent>
                 <p className="text-sm">{formatAddress(cart.shippingAddress)}</p>
+                <p className="text-muted-foreground mt-2 text-sm">
+                  Frete selecionado: {cart.shippingMethod}
+                </p>
               </CardContent>
             </Card>
             <FinishOrderButton />
@@ -58,7 +70,9 @@ const ConfirmationPage = async () => {
         </Card>
         <CartSummary
           subtotalInCents={cartTotalInCents}
-          totalInCents={cartTotalInCents}
+          shippingInCents={cart.shippingInCents}
+          shippingMethod={cart.shippingMethod}
+          totalInCents={cartTotalInCents + cart.shippingInCents}
           products={cart.items.map((item) => ({
             id: item.product.id,
             name: item.product.name,

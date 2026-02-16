@@ -13,6 +13,45 @@ import {
   createCheckoutSessionSchema,
 } from "./schema";
 
+const getStripeCompatibleImageUrls = (
+  rawImageUrl: string | null | undefined,
+  appUrl: string,
+) => {
+  if (!rawImageUrl) {
+    return undefined;
+  }
+
+  const normalizedValue = rawImageUrl.trim();
+  if (!normalizedValue) {
+    return undefined;
+  }
+
+  try {
+    const url = normalizedValue.startsWith("http")
+      ? new URL(normalizedValue)
+      : new URL(normalizedValue, appUrl);
+
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      console.warn(
+        "[Stripe Checkout] Ignorando imagem com protocolo inválido",
+        {
+          rawImageUrl,
+          protocol: url.protocol,
+        },
+      );
+      return undefined;
+    }
+
+    return [url.toString()];
+  } catch (error) {
+    console.warn("[Stripe Checkout] Ignorando URL de imagem inválida", {
+      rawImageUrl,
+      error,
+    });
+    return undefined;
+  }
+};
+
 export const createCheckoutSession = async (
   data: CreateCheckoutSessionSchema,
 ) => {
@@ -68,15 +107,18 @@ export const createCheckoutSession = async (
       orderId,
     },
     line_items: orderItems.map((orderItem) => {
+      const imageUrls = getStripeCompatibleImageUrls(
+        orderItem.product.imageUrl,
+        appUrl,
+      );
+
       return {
         price_data: {
           currency: "brl",
           product_data: {
             name: orderItem.product.name,
             description: orderItem.product.description,
-            images: orderItem.product.imageUrl?.startsWith("http")
-              ? [orderItem.product.imageUrl]
-              : [new URL(orderItem.product.imageUrl, appUrl).toString()],
+            images: imageUrls,
           },
           // Em centavos
           unit_amount: orderItem.priceInCents,

@@ -45,10 +45,15 @@ export const updateCartShippingAddress = async (
     throw new Error("Cart not found");
   }
 
+  const isSameAddress = cart.shippingAddressId === data.shippingAddressId;
+
   await db
     .update(cartTable)
     .set({
       shippingAddressId: data.shippingAddressId,
+      shippingInCents: isSameAddress ? cart.shippingInCents : 0,
+      shippingMethod: isSameAddress ? cart.shippingMethod : null,
+      shippingServiceId: isSameAddress ? cart.shippingServiceId : null,
     })
     .where(eq(cartTable.id, cart.id));
 

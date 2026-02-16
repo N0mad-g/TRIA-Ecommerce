@@ -95,10 +95,15 @@ export const finishOrder = async () => {
   if (cart.items.length === 0) {
     throw new Error("Cart is empty");
   }
-  const totalPriceInCents = cart.items.reduce(
+  if (!cart.shippingMethod || !cart.shippingServiceId) {
+    throw new Error("Shipping option not selected");
+  }
+
+  const productsTotalInCents = cart.items.reduce(
     (acc, item) => acc + item.product.priceInCents * item.quantity,
     0,
   );
+  const totalPriceInCents = productsTotalInCents + cart.shippingInCents;
 
   let orderId: string | undefined;
   for (
@@ -148,6 +153,8 @@ export const finishOrder = async () => {
             street: shippingAddress.street,
             userId: session.user.id,
             totalPriceInCents,
+            shippingInCents: cart.shippingInCents,
+            shippingMethod: cart.shippingMethod,
             shippingAddressId: shippingAddress.id,
             shortId,
           })
