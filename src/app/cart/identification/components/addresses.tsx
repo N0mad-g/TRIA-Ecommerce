@@ -1,8 +1,8 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { PatternFormat } from "react-number-format";
 import { toast } from "sonner";
@@ -22,11 +22,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { shippingAddressTable } from "@/db/schema";
+import { useCalculateShipping } from "@/hooks/mutations/use-calculate-shipping";
 import { useCreateShippingAddress } from "@/hooks/mutations/use-create-shipping-address";
 import { useUpdateCartShippingAddress } from "@/hooks/mutations/use-update-cart-shipping-address";
 import { useUserAddresses } from "@/hooks/queries/use-user-addresses";
 
 import { formatAddress } from "../../helpers/address";
+import ShippingOptions from "./shipping-options";
 
 const formSchema = z.object({
   email: z.email("E-mail inválido"),
@@ -47,21 +49,123 @@ type FormValues = z.infer<typeof formSchema>;
 interface AddressesProps {
   shippingAddresses: (typeof shippingAddressTable.$inferSelect)[];
   defaultShippingAddressId: string | null;
+  initialShippingServiceId: string | null;
 }
+
+const normalizePostalCode = (postalCode: string) =>
+  postalCode.replace(/\D/g, "");
+
+const getStateAbbr = (state: string) => state.trim().slice(0, 2).toUpperCase();
 
 const Addresses = ({
   shippingAddresses,
   defaultShippingAddressId,
+  initialShippingServiceId,
 }: AddressesProps) => {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [selectedAddress, setSelectedAddress] = useState<string | null>(
     defaultShippingAddressId || null,
   );
+  const [selectedShippingServiceId, setSelectedShippingServiceId] = useState<
+    string | null
+  >(initialShippingServiceId);
+  const [shippingOptions, setShippingOptions] = useState<
+    { id: string; name: string; price: number; delivery_time: number | null }[]
+  >([]);
+  const [isShippingSaving, setIsShippingSaving] = useState(false);
+  const [isShippingSaved, setIsShippingSaved] = useState(
+    Boolean(initialShippingServiceId),
+  );
+  const [isAddressSaved, setIsAddressSaved] = useState(
+    Boolean(defaultShippingAddressId),
+  );
+  const [isProceedLoading, setIsProceedLoading] = useState(false);
+
+  const calculateShippingMutation = useCalculateShipping();
   const createShippingAddressMutation = useCreateShippingAddress();
   const updateCartShippingAddressMutation = useUpdateCartShippingAddress();
   const { data: addresses, isLoading } = useUserAddresses({
     initialData: shippingAddresses,
   });
+
+  const runShippingCalculation = async (
+    address: typeof shippingAddressTable.$inferSelect,
+  ) => {
+    try {
+      const options = await calculateShippingMutation.mutateAsync({
+        to: {
+          postal_code: normalizePostalCode(address.zipCode),
+          address: address.street,
+          number: address.number,
+          city: address.city,
+          state_abbr: getStateAbbr(address.state),
+        },
+      });
+
+      setShippingOptions(options);
+      console.log("🚚 Shipping options loaded:", options);
+
+      if (!options.some((option) => option.id === selectedShippingServiceId)) {
+        setSelectedShippingServiceId(null);
+        setIsShippingSaved(false);
+      } else if (selectedShippingServiceId) {
+        setIsShippingSaved(true);
+      }
+
+      if (options.length === 0) {
+        toast.error("Não foi possível calcular o frete para este endereço.");
+      }
+    } catch (error) {
+      console.error("[Addresses] Erro ao calcular frete:", error);
+      setShippingOptions([]);
+      setSelectedShippingServiceId(null);
+      toast.error("Erro ao calcular frete. Tente novamente.");
+    }
+  };
+
+  useEffect(() => {
+    if (searchParams.get("shippingRequired") === "1") {
+      toast.error("Selecione uma opção de frete");
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!selectedAddress || selectedAddress === "add_new") {
+      setShippingOptions([]);
+      setSelectedShippingServiceId(null);
+      setIsShippingSaved(false);
+      setIsAddressSaved(false);
+      return;
+    }
+
+    const address = addresses?.find((item) => item.id === selectedAddress);
+    if (!address) {
+      return;
+    }
+
+    const persistAndCalculate = async () => {
+      try {
+        setIsAddressSaved(false);
+        setIsShippingSaved(false);
+
+        await updateCartShippingAddressMutation.mutateAsync({
+          shippingAddressId: selectedAddress,
+        });
+
+        setIsAddressSaved(true);
+        await runShippingCalculation(address);
+      } catch (error) {
+        console.error(
+          "[Addresses] Erro ao salvar endereço no carrinho:",
+          error,
+        );
+        toast.error("Erro ao salvar endereço para entrega.");
+      }
+    };
+
+    persistAndCalculate();
+  }, [selectedAddress, addresses]);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -87,29 +191,37 @@ const Addresses = ({
       toast.success("Endereço criado com sucesso!");
       form.reset();
       setSelectedAddress(newAddress.id);
-
-      await updateCartShippingAddressMutation.mutateAsync({
-        shippingAddressId: newAddress.id,
-      });
-      toast.success("Endereço vinculado ao carrinho!");
     } catch (error) {
       toast.error("Erro ao criar endereço. Tente novamente.");
       console.error(error);
     }
   };
 
+  const canProceedToPayment =
+    Boolean(selectedAddress && selectedAddress !== "add_new") &&
+    isAddressSaved &&
+    shippingOptions.length > 0 &&
+    Boolean(selectedShippingServiceId) &&
+    isShippingSaved &&
+    !isShippingSaving &&
+    !calculateShippingMutation.isPending &&
+    !updateCartShippingAddressMutation.isPending &&
+    !isProceedLoading;
+
   const handleGoToPayment = async () => {
-    if (!selectedAddress || selectedAddress === "add_new") return;
+    if (!canProceedToPayment) {
+      toast.error("Selecione uma opção de frete para continuar.");
+      return;
+    }
 
     try {
-      await updateCartShippingAddressMutation.mutateAsync({
-        shippingAddressId: selectedAddress,
-      });
-      toast.success("Endereço selecionado para entrega!");
+      setIsProceedLoading(true);
       router.push("/cart/confirmation");
     } catch (error) {
       toast.error("Erro ao selecionar endereço. Tente novamente.");
       console.error(error);
+    } finally {
+      setIsProceedLoading(false);
     }
   };
 
@@ -165,14 +277,34 @@ const Addresses = ({
         )}
 
         {selectedAddress && selectedAddress !== "add_new" && (
-          <div className="mt-4">
+          <div className="mt-4 space-y-4">
+            {calculateShippingMutation.isPending ? (
+              <p className="text-muted-foreground text-sm">
+                Calculando opções de frete...
+              </p>
+            ) : (
+              <ShippingOptions
+                options={shippingOptions}
+                selectedServiceId={selectedShippingServiceId}
+                onSelectedServiceIdChange={(serviceId) => {
+                  setSelectedShippingServiceId(serviceId);
+                  setIsShippingSaved(false);
+                }}
+                onShippingSavingChange={setIsShippingSaving}
+                onShippingSaved={({ serviceId }) => {
+                  setSelectedShippingServiceId(serviceId);
+                  setIsShippingSaved(true);
+                }}
+              />
+            )}
+
             <Button
               onClick={handleGoToPayment}
               className="w-full"
-              disabled={updateCartShippingAddressMutation.isPending}
+              disabled={!canProceedToPayment}
             >
-              {updateCartShippingAddressMutation.isPending
-                ? "Processando..."
+              {isProceedLoading || isShippingSaving
+                ? "Salvando frete..."
                 : "Ir para pagamento"}
             </Button>
           </div>

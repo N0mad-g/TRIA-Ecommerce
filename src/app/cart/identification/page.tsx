@@ -46,10 +46,13 @@ const IdentificationPage = async () => {
         <Addresses
           shippingAddresses={shippingAddresses}
           defaultShippingAddressId={cart.shippingAddress?.id || null}
+          initialShippingServiceId={cart.shippingServiceId}
         />
         <CartSummary
           subtotalInCents={cartTotalInCents}
-          totalInCents={cartTotalInCents}
+          shippingInCents={cart.shippingInCents}
+          shippingMethod={cart.shippingMethod}
+          totalInCents={cartTotalInCents + cart.shippingInCents}
           products={cart.items.map((item) => ({
             id: item.product.id,
             name: item.product.name,

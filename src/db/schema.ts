@@ -177,6 +177,9 @@ export const cartTable = pgTable("cart", {
     () => shippingAddressTable.id,
     { onDelete: "set null" },
   ),
+  shippingInCents: integer("shipping_in_cents").notNull().default(0),
+  shippingMethod: text("shipping_method"),
+  shippingServiceId: text("shipping_service_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
