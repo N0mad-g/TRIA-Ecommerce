@@ -21,6 +21,31 @@ import { CartItem } from "./cart-item";
 export const Cart = () => {
   const { data: cart, isPending: cartIsLoading } = useCart();
 
+  const subtotalInCents =
+    cart?.items?.reduce(
+      (acc, item) => acc + item.product.priceInCents * item.quantity,
+      0,
+    ) ?? 0;
+
+  const shippingInCents = cart?.shippingInCents ?? 0;
+  const hasShippingMethod = Boolean(cart?.shippingMethod);
+  const isShippingPending = shippingInCents === 0 && !hasShippingMethod;
+
+  const getShippingLabel = () => {
+    if (isShippingPending) {
+      return "A calcular";
+    }
+
+    if (shippingInCents === 0 && hasShippingMethod) {
+      return "GRÁTIS";
+    }
+
+    return formatCentsToBRL(shippingInCents);
+  };
+
+  const totalInCents =
+    subtotalInCents + (shippingInCents > 0 ? shippingInCents : 0);
+
   return (
     <Sheet>
       <SheetTrigger asChild>
@@ -61,21 +86,25 @@ export const Cart = () => {
 
                 <div className="flex items-center justify-between text-xs font-medium">
                   <p>Subtotal</p>
-                  <p>{formatCentsToBRL(cart.totalPriceInCents ?? 0)}</p>
+                  <p>{formatCentsToBRL(subtotalInCents)}</p>
                 </div>
 
                 <Separator />
 
                 <div className="flex items-center justify-between text-xs font-medium">
                   <p>Entrega</p>
-                  <p>GRÁTIS</p>
+                  <p
+                    className={isShippingPending ? "text-muted-foreground" : ""}
+                  >
+                    {getShippingLabel()}
+                  </p>
                 </div>
 
                 <Separator />
 
                 <div className="flex items-center justify-between text-xs font-medium">
                   <p>Total</p>
-                  <p>{formatCentsToBRL(cart.totalPriceInCents ?? 0)}</p>
+                  <p>{formatCentsToBRL(totalInCents)}</p>
                 </div>
 
                 <Button className="mt-5 rounded-full" asChild>
