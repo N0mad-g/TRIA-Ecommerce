@@ -16,4 +16,7 @@ export type OrderEmailData = {
   shippingCostInCents: number;
   addressLine: string;
   cityStateZip: string;
+  trackingCode?: string;
+  shippingLabelUrl?: string;
+  shippingMethod?: string;
 };

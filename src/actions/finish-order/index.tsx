@@ -136,6 +136,8 @@ export const finishOrder = async () => {
           }
         }
 
+        console.log("💾 Saving order with shipping service:", cart.shippingServiceId);
+
         const [order] = await tx
           .insert(orderTable)
           .values({
@@ -154,6 +156,7 @@ export const finishOrder = async () => {
             userId: session.user.id,
             totalPriceInCents,
             shippingInCents: cart.shippingInCents,
+            shippingServiceId: cart.shippingServiceId,
             shippingMethod: cart.shippingMethod,
             shippingAddressId: shippingAddress.id,
             shortId,

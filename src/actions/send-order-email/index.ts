@@ -113,9 +113,12 @@ const buildOrderEmailData = (order: OrderWithItems) => {
     createdAt: order.createdAt,
     items: items ?? [],
     totalPriceInCents: order.totalPriceInCents,
-    shippingCostInCents: 0,
+    shippingCostInCents: order.shippingInCents ?? 0,
     addressLine,
     cityStateZip,
+    trackingCode: order.trackingCode ?? undefined,
+    shippingLabelUrl: order.shippingLabelUrl ?? undefined,
+    shippingMethod: order.shippingMethod ?? undefined,
   } satisfies OrderEmailData;
 };
 

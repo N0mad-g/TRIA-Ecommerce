@@ -272,6 +272,7 @@ export const orderTable = pgTable("order", {
   // Frete
   shippingInCents: integer("shipping_in_cents").default(0),
   shippingMethod: text("shipping_method"), // "PAC", "SEDEX"
+  shippingServiceId: text("shipping_service_id"), // Melhor Envio service ID (1=PAC, 2=SEDEX, etc)
   shippingCarrier: text("shipping_carrier"), // "Correios"
 
   // Rastreamento
