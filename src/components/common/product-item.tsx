@@ -15,22 +15,24 @@ interface ProductItemProps {
 
 const ProductItem = ({ product }: ProductItemProps) => {
   return (
-    <Link href={`/product/${product.slug}`} className="flex flex-col gap-4">
-      <Image
-        src={product.imageUrl.trim()}
-        alt={product.name}
-        width={200}
-        height={200}
-        className="rounded-3xl"
-      />
-      <div className="flex max-w-50 flex-col gap-1">
-        <p className="truncate text-sm font-medium">{product.name}</p>
-        <p className="text-muted-foreground truncate text-xs font-medium">
-          {product.description}
-        </p>
-        <p className="truncate text-sm font-semibold">
-          {formatCentsToBRL(product.priceInCents)}
-        </p>
+    <Link href={`/product/${product.slug}`} className="group block">
+      <div className="flex flex-col gap-4">
+        <Image
+          src={product.imageUrl.trim()}
+          alt={product.name}
+          width={200}
+          height={200}
+          className="rounded-3xl transition-opacity group-hover:opacity-80"
+        />
+        <div className="flex max-w-50 flex-col gap-1">
+          <p className="truncate text-sm font-medium">{product.name}</p>
+          <p className="text-muted-foreground truncate text-xs font-medium">
+            {product.description}
+          </p>
+          <p className="truncate text-sm font-semibold">
+            {formatCentsToBRL(product.priceInCents)}
+          </p>
+        </div>
       </div>
     </Link>
   );

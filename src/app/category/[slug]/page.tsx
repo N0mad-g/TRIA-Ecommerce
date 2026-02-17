@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 
+import Footer from "@/components/common/footer";
 import { Header } from "@/components/common/header";
 import ProductItem from "@/components/common/product-item";
 import { db } from "@/db";
@@ -31,14 +32,21 @@ const CategoryPage = async ({ params }: CategoryPageProps) => {
   return (
     <>
       <Header />
-      <div className="space-y-6 px-5">
+      <div className="min-h-screen space-y-6 px-5 pb-10">
         <h2 className="text-xl font-semibold">{category.name}</h2>
-        <div className="grid grid-cols-2 gap-4">
-          {products.map((product) => (
-            <ProductItem key={product.id} product={product} />
-          ))}
-        </div>
+        {products.length === 0 ? (
+          <p className="text-muted-foreground text-center">
+            Nenhum produto encontrado nesta categoria
+          </p>
+        ) : (
+          <div className="grid grid-cols-2 gap-4">
+            {products.map((product) => (
+              <ProductItem key={product.id} product={product} />
+            ))}
+          </div>
+        )}
       </div>
+      <Footer />
     </>
   );
 };
