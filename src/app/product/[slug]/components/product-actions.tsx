@@ -8,6 +8,7 @@ import { toast } from "sonner";
 
 import { addProductToCart } from "@/actions/add-to-cart-product";
 import { Button } from "@/components/ui/button";
+import { getUseCartQueryKey } from "@/hooks/queries/use-cart";
 
 import AddToCartButton from "./add-to-cart-button";
 
@@ -27,7 +28,7 @@ const ProductActions = ({ productId }: ProductActionsProps) => {
         quantity,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cart"] });
+      queryClient.invalidateQueries({ queryKey: getUseCartQueryKey() });
       router.push("/cart/identification");
     },
     onError: (error) => {
@@ -48,7 +49,7 @@ const ProductActions = ({ productId }: ProductActionsProps) => {
       <div className="px-5">
         <div className="space-y-4">
           <h3 className="font-medium">Quantidade</h3>
-          <div className="flex w-[100px] items-center justify-between rounded-lg border">
+          <div className="flex w-25 items-center justify-between rounded-lg border">
             <Button size="icon" variant="ghost" onClick={handleDecrement}>
               <MinusIcon />
             </Button>
