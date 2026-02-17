@@ -35,8 +35,7 @@ export async function GET(req: NextRequest) {
         grant_type: "authorization_code",
         client_id: process.env.MELHOR_ENVIO_CLIENT_ID,
         client_secret: process.env.MELHOR_ENVIO_CLIENT_SECRET,
-        redirect_uri:
-          "https://preornamental-mina-nutritively.ngrok-free.dev/api/melhorenvio/callback",
+        redirect_uri: "https://smgrow.com.br/api/melhorenvio/callback",
         code,
       }),
     });
