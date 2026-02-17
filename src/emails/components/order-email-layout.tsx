@@ -197,6 +197,47 @@ export const OrderEmailLayout = ({
           <Hr style={styles.divider} />
 
           <Section>
+            {/* Subtotal */}
+            <Row>
+              <Column>
+                <Text style={styles.totalLabel}>Subtotal</Text>
+              </Column>
+              <Column>
+                <Text style={styles.totalValue}>
+                  {formatCentsToBRL(
+                    order.totalPriceInCents - order.shippingCostInCents,
+                  )}
+                </Text>
+              </Column>
+            </Row>
+
+            {/* Shipping */}
+            <Row style={{ paddingTop: "8px" }}>
+              <Column>
+                <Text style={styles.totalLabel}>
+                  {order.shippingCostInCents > 0
+                    ? `Frete (${order.shippingMethod || "SEDEX"})`
+                    : "Frete"}
+                </Text>
+              </Column>
+              <Column>
+                <Text
+                  style={{
+                    ...styles.totalValue,
+                    color:
+                      order.shippingCostInCents === 0 ? "#10b981" : colors.text,
+                  }}
+                >
+                  {order.shippingCostInCents > 0
+                    ? formatCentsToBRL(order.shippingCostInCents)
+                    : "GRÁTIS"}
+                </Text>
+              </Column>
+            </Row>
+
+            <Hr style={styles.divider} />
+
+            {/* Total */}
             <Row>
               <Column>
                 <Text style={styles.totalLabel}>Total</Text>
