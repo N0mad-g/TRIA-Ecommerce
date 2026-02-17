@@ -41,6 +41,8 @@ const MyOrdersPage = async () => {
                 .toUpperCase()
                 .slice(0, 4),
             totalPriceInCents: order.totalPriceInCents,
+            shippingInCents: order.shippingInCents ?? 0,
+            shippingMethod: order.shippingMethod ?? undefined,
             status: order.status,
             createdAt: order.createdAt,
             items: order.items.map((item) => ({

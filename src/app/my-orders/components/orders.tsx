@@ -19,6 +19,8 @@ interface OrdersProps {
     id: string;
     shortId: string;
     totalPriceInCents: number;
+    shippingInCents: number;
+    shippingMethod?: string;
     status: (typeof orderTable.$inferSelect)["status"];
     createdAt: Date;
     items: Array<{
@@ -123,13 +125,20 @@ const Orders = ({ orders }: OrdersProps) => {
                       <div className="flex justify-between">
                         <p className="text-sm">Subtotal</p>
                         <p className="text-muted-foreground text-sm font-medium">
-                          {formatCentsToBRL(order.totalPriceInCents)}
+                          {formatCentsToBRL(
+                            order.totalPriceInCents - order.shippingInCents,
+                          )}
                         </p>
                       </div>
                       <div className="flex justify-between">
-                        <p className="text-sm">Frete</p>
+                        <p className="text-sm">
+                          Frete{" "}
+                          {order.shippingMethod && `(${order.shippingMethod})`}
+                        </p>
                         <p className="text-muted-foreground text-sm font-medium">
-                          GRÁTIS
+                          {order.shippingInCents > 0
+                            ? formatCentsToBRL(order.shippingInCents)
+                            : "GRÁTIS"}
                         </p>
                       </div>
                       <Separator />
