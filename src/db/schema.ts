@@ -20,6 +20,7 @@ export const userTable = pgTable("user", {
     .$defaultFn(() => false)
     .notNull(),
   image: text("image"),
+  role: text("role").notNull().default("user"),
   createdAt: timestamp("created_at")
     .$defaultFn(() => new Date())
     .notNull(),
