@@ -106,26 +106,40 @@ export const createCheckoutSession = async (
     metadata: {
       orderId,
     },
-    line_items: orderItems.map((orderItem) => {
-      const imageUrls = getStripeCompatibleImageUrls(
-        orderItem.product.imageUrl,
-        appUrl,
-      );
-
-      return {
-        price_data: {
-          currency: "brl",
-          product_data: {
-            name: orderItem.product.name,
-            description: orderItem.product.description,
-            images: imageUrls,
+    line_items: [
+      ...orderItems.map((orderItem) => {
+        const imageUrls = getStripeCompatibleImageUrls(
+          orderItem.product.imageUrl,
+          appUrl,
+        );
+        return {
+          price_data: {
+            currency: "brl",
+            product_data: {
+              name: orderItem.product.name,
+              description: orderItem.product.description,
+              images: imageUrls,
+            },
+            unit_amount: orderItem.priceInCents,
           },
-          // Em centavos
-          unit_amount: orderItem.priceInCents,
-        },
-        quantity: orderItem.quantity,
-      };
-    }),
+          quantity: orderItem.quantity,
+        };
+      }),
+      ...(order.shippingInCents && order.shippingInCents > 0
+        ? [
+            {
+              price_data: {
+                currency: "brl",
+                product_data: {
+                  name: `Frete - ${order.shippingMethod ?? "Entrega"}`,
+                },
+                unit_amount: order.shippingInCents,
+              },
+              quantity: 1,
+            },
+          ]
+        : []),
+    ],
   });
   return checkoutSession;
 };
