@@ -31,8 +31,8 @@ const ProductActions = ({ productId }: ProductActionsProps) => {
       queryClient.invalidateQueries({ queryKey: getUseCartQueryKey() });
       router.push("/cart/identification");
     },
-    onError: (error) => {
-      toast.error(error.message);
+    onError: () => {
+      toast.error("Faça login para comprar o produto");
     },
   });
 

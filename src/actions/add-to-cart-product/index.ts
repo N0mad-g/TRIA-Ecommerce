@@ -15,13 +15,13 @@ export const addProductToCart = async (data: AddProductToCartSchema) => {
     headers: await headers(),
   });
   if (!session?.user) {
-    throw new Error("Faça login para adicionar à sacola");
+    return { error: "Faça login para adicionar à sacola" };
   }
   const product = await db.query.productTable.findFirst({
     where: (product, { eq }) => eq(product.id, data.productId),
   });
   if (!product) {
-    throw new Error("Produto não encontrado");
+    return { error: "Produto não encontrado" };
   }
   const cart = await db.query.cartTable.findFirst({
     where: (cart, { eq }) => eq(cart.userId, session.user.id),
@@ -47,11 +47,12 @@ export const addProductToCart = async (data: AddProductToCartSchema) => {
         quantity: cartItem.quantity + data.quantity,
       })
       .where(eq(cartItemTable.id, cartItem.id));
-    return;
+    return { success: true };
   }
   await db.insert(cartItemTable).values({
     cartId: cartId!,
     productId: data.productId,
     quantity: data.quantity,
   });
+  return { success: true };
 };
