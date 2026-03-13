@@ -15,13 +15,13 @@ export const addProductToCart = async (data: AddProductToCartSchema) => {
     headers: await headers(),
   });
   if (!session?.user) {
-    return { error: "Faça login para adicionar à sacola" };
+    throw new Error("Faça login para adicionar à sacola");
   }
   const product = await db.query.productTable.findFirst({
     where: (product, { eq }) => eq(product.id, data.productId),
   });
   if (!product) {
-    return { error: "Produto não encontrado" };
+    throw new Error("Produto não encontrado");
   }
   const cart = await db.query.cartTable.findFirst({
     where: (cart, { eq }) => eq(cart.userId, session.user.id),
