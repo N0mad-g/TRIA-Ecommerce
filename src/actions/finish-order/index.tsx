@@ -95,8 +95,15 @@ export const finishOrder = async () => {
   if (cart.items.length === 0) {
     throw new Error("Cart is empty");
   }
-  if (!cart.shippingMethod || !cart.shippingServiceId) {
+  if (!cart.shippingMethod) {
     throw new Error("Shipping option not selected");
+  }
+  const isPickup = cart.shippingServiceId === "pickup";
+  if (!isPickup && !cart.shippingServiceId) {
+    throw new Error("Shipping option not selected");
+  }
+  if (isPickup) {
+    console.log("[Checkout] Pickup selected, skipping shipping integration");
   }
 
   const productsTotalInCents = cart.items.reduce(
@@ -136,7 +143,10 @@ export const finishOrder = async () => {
           }
         }
 
-        console.log("💾 Saving order with shipping service:", cart.shippingServiceId);
+        console.log(
+          "💾 Saving order with shipping service:",
+          cart.shippingServiceId,
+        );
 
         const [order] = await tx
           .insert(orderTable)

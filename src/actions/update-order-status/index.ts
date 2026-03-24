@@ -34,12 +34,24 @@ export const updateOrderStatus = async (data: UpdateOrderStatusSchema) => {
     throw new Error("Unauthorized");
   }
 
+  // Fetch order to check shipping method
+  const existingOrder = await db.query.orderTable.findFirst({
+    where: eq(orderTable.id, data.orderId),
+  });
+
+  if (!existingOrder) {
+    throw new Error("Order not found");
+  }
+
   // If status is being changed to "shipped", create the Melhor Envio shipment first
+  // Skip for pickup orders
   let shipmentResult: Awaited<
     ReturnType<typeof createMelhorEnvioShipment>
   > | null = null;
 
-  if (data.status === "shipped") {
+  const isPickup = existingOrder.shippingServiceId === "pickup";
+
+  if (data.status === "shipped" && !isPickup) {
     console.log(
       "[Update Order Status] Criando etiqueta no Melhor Envio para pedido:",
       data.orderId,
@@ -63,6 +75,11 @@ export const updateOrderStatus = async (data: UpdateOrderStatusSchema) => {
       "[Update Order Status] Etiqueta criada com sucesso",
       shipmentResult.data,
     );
+  } else if (data.status === "shipped" && isPickup) {
+    console.log(
+      "[Update Order Status] Pickup order - skipping Melhor Envio shipment creation",
+      data.orderId,
+    );
   }
 
   const [order] = await db
@@ -72,10 +89,6 @@ export const updateOrderStatus = async (data: UpdateOrderStatusSchema) => {
     })
     .where(eq(orderTable.id, data.orderId))
     .returning();
-
-  if (!order) {
-    throw new Error("Order not found");
-  }
 
   // Only send email if a template exists for this status
   const emailType =

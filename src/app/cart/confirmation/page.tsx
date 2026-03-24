@@ -45,7 +45,11 @@ const ConfirmationPage = async () => {
   if (!cart.shippingAddress) {
     redirect("/cart/identification");
   }
-  if (!cart.shippingMethod || cart.shippingInCents <= 0) {
+  if (!cart.shippingMethod) {
+    redirect("/cart/identification?shippingRequired=1");
+  }
+  const isPickup = cart.shippingServiceId === "pickup";
+  if (!isPickup && cart.shippingInCents <= 0) {
     redirect("/cart/identification?shippingRequired=1");
   }
   return (
