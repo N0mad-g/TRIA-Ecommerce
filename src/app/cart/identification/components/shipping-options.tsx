@@ -96,12 +96,18 @@ const ShippingOptions = ({
                     >
                       <p className="text-sm font-medium">{option.name}</p>
                       <p className="text-muted-foreground text-xs">
-                        Entrega em {option.delivery_time ?? "-"} dia(s)
+                        {option.id === "pickup"
+                          ? "Retirada imediata"
+                          : `Entrega em ${option.delivery_time ?? "-"} dia(s)`}
                       </p>
                     </Label>
                   </div>
                   <p className="text-sm font-semibold">
-                    {formatCentsToBRL(option.price)}
+                    {option.id === "pickup"
+                      ? "Retirada no local (Grátis)"
+                      : option.price === 0
+                        ? "Grátis"
+                        : `R$ ${(option.price / 100).toFixed(2)}`}
                   </p>
                 </div>
               </CardContent>

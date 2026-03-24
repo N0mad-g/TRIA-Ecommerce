@@ -13,6 +13,8 @@ type MelhorEnvioShippingResponse = {
   error?: string;
 };
 
+const SHIPPING_MARGIN_CENTS = 300;
+
 const parsePriceToCents = (price: string | number | undefined) => {
   if (typeof price === "number") {
     return Math.round(price * 100);
@@ -26,6 +28,10 @@ const parsePriceToCents = (price: string | number | undefined) => {
   }
 
   return 0;
+};
+
+const applyShippingMargin = (priceInCents: number) => {
+  return priceInCents + SHIPPING_MARGIN_CENTS;
 };
 
 export const calculateShipping = async (
@@ -72,20 +78,31 @@ export const calculateShipping = async (
 
     const options = (response.data ?? [])
       .filter((service) => !service.error)
-      .map((service) => ({
-        id: String(service.id ?? ""),
-        name: service.name ?? "Serviço",
-        price: parsePriceToCents(service.price),
-        delivery_time:
-          typeof service.delivery_time === "number"
-            ? service.delivery_time
-            : null,
-      }))
+      .map((service) => {
+        const basePrice = parsePriceToCents(service.price);
+
+        return {
+          id: String(service.id ?? ""),
+          name: service.name ?? "Serviço",
+          price: applyShippingMargin(basePrice),
+          delivery_time:
+            typeof service.delivery_time === "number"
+              ? service.delivery_time
+              : null,
+        };
+      })
       .filter((service) => service.id);
+
+    const pickupOption: ShippingOption = {
+      id: "pickup",
+      name: "Retirada no local",
+      price: 0,
+      delivery_time: 0,
+    };
 
     console.log("[Calculate Shipping] Opções de frete calculadas", options);
 
-    return options;
+    return [pickupOption, ...options];
   } catch (error) {
     console.error("[Calculate Shipping] Falha ao calcular frete:", error);
     return [];
