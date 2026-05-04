@@ -124,11 +124,12 @@ export const productTable = pgTable("product", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export const productRelations = relations(productTable, ({ one }) => ({
+export const productRelations = relations(productTable, ({ one, many }) => ({
   category: one(categoryTable, {
     fields: [productTable.categoryId],
     references: [categoryTable.id],
   }),
+  kits: many(kitProductTable),
 }));
 
 export const shippingAddressTable = pgTable("shipping_address", {
@@ -314,6 +315,45 @@ export const orderItemRelations = relations(orderItemTable, ({ one }) => ({
   }),
   product: one(productTable, {
     fields: [orderItemTable.productId],
+    references: [productTable.id],
+  }),
+}));
+
+export const kitTable = pgTable("kit", {
+  id: uuid().primaryKey().defaultRandom(),
+  name: text().notNull(),
+  slug: text().notNull().unique(),
+  description: text().notNull(),
+  concept: text(),
+  priceInCents: integer("price_in_cents").notNull(),
+  originalPriceInCents: integer("original_price_in_cents").notNull(),
+  imageUrl: text("image_url"),
+  isActive: boolean("is_active").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const kitRelations = relations(kitTable, ({ many }) => ({
+  kitProducts: many(kitProductTable),
+}));
+
+export const kitProductTable = pgTable("kit_product", {
+  id: uuid().primaryKey().defaultRandom(),
+  kitId: uuid("kit_id")
+    .notNull()
+    .references(() => kitTable.id, { onDelete: "cascade" }),
+  productId: uuid("product_id")
+    .notNull()
+    .references(() => productTable.id, { onDelete: "restrict" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const kitProductRelations = relations(kitProductTable, ({ one }) => ({
+  kit: one(kitTable, {
+    fields: [kitProductTable.kitId],
+    references: [kitTable.id],
+  }),
+  product: one(productTable, {
+    fields: [kitProductTable.productId],
     references: [productTable.id],
   }),
 }));
