@@ -27,7 +27,11 @@ const ProductActions = ({ productId }: ProductActionsProps) => {
         productId,
         quantity,
       }),
-    onSuccess: () => {
+    onSuccess: (result) => {
+      if (result?.error) {
+    toast.error(result.error); // ← mensagem vem da action
+    return;
+      }
       queryClient.invalidateQueries({ queryKey: getUseCartQueryKey() });
       router.push("/cart/identification");
     },

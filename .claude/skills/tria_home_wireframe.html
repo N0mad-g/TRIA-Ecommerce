@@ -1,0 +1,667 @@
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font-sans); }
+  .page { width: 100%; background: var(--color-background-primary); }
+
+  .section-label {
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--color-text-tertiary);
+    margin-bottom: 8px;
+  }
+
+  /* HERO */
+  .hero {
+    background: #0a0a0a;
+    min-height: 420px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero-left {
+    padding: 56px 40px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 20px;
+    z-index: 2;
+  }
+  .hero-eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #888;
+    font-weight: 400;
+  }
+  .hero-headline {
+    font-size: 36px;
+    font-weight: 500;
+    color: #f5f5f5;
+    line-height: 1.15;
+  }
+  .hero-sub {
+    font-size: 14px;
+    color: #888;
+    line-height: 1.6;
+    max-width: 320px;
+  }
+  .hero-cta {
+    display: inline-block;
+    background: #f5f5f5;
+    color: #0a0a0a;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 12px 28px;
+    border-radius: 2px;
+    width: fit-content;
+    letter-spacing: 0.05em;
+  }
+  .hero-right {
+    background: #1a1a1a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+  .hero-img-placeholder {
+    width: 180px;
+    height: 260px;
+    background: #2a2a2a;
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .hero-img-placeholder span {
+    font-size: 11px;
+    color: #555;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .hero-nav {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 20px 40px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 3;
+  }
+  .nav-logo {
+    font-size: 18px;
+    font-weight: 500;
+    color: #f5f5f5;
+    letter-spacing: 0.25em;
+  }
+  .nav-links {
+    display: flex;
+    gap: 24px;
+  }
+  .nav-links span {
+    font-size: 12px;
+    color: #888;
+    letter-spacing: 0.08em;
+  }
+
+  /* IDENTIFICAÇÃO */
+  .identification {
+    padding: 64px 40px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    align-items: center;
+    border-bottom: 0.5px solid var(--color-border-tertiary);
+  }
+  .id-left {}
+  .id-title {
+    font-size: 22px;
+    font-weight: 500;
+    color: var(--color-text-primary);
+    line-height: 1.3;
+    margin-bottom: 24px;
+  }
+  .id-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .id-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 14px;
+    color: var(--color-text-secondary);
+  }
+  .id-dot {
+    width: 4px;
+    height: 4px;
+    background: var(--color-text-tertiary);
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .id-right {
+    background: var(--color-background-secondary);
+    height: 200px;
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .id-right span {
+    font-size: 11px;
+    color: var(--color-text-tertiary);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  /* REVELAÇÃO */
+  .revelation {
+    background: #0a0a0a;
+    padding: 72px 40px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+  .rev-title {
+    font-size: 28px;
+    font-weight: 500;
+    color: #f5f5f5;
+    max-width: 480px;
+    line-height: 1.3;
+  }
+  .rev-sub {
+    font-size: 14px;
+    color: #666;
+    max-width: 360px;
+    line-height: 1.6;
+  }
+
+  /* SOLUÇÃO */
+  .solution {
+    padding: 64px 40px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    align-items: center;
+    border-bottom: 0.5px solid var(--color-border-tertiary);
+  }
+  .sol-eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--color-text-tertiary);
+    margin-bottom: 12px;
+  }
+  .sol-title {
+    font-size: 22px;
+    font-weight: 500;
+    color: var(--color-text-primary);
+    line-height: 1.3;
+    margin-bottom: 16px;
+  }
+  .sol-text {
+    font-size: 14px;
+    color: var(--color-text-secondary);
+    line-height: 1.7;
+  }
+  .sol-right {
+    background: var(--color-background-secondary);
+    height: 220px;
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .sol-right span {
+    font-size: 11px;
+    color: var(--color-text-tertiary);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  /* PROTOCOLOS */
+  .protocols {
+    padding: 64px 40px;
+    border-bottom: 0.5px solid var(--color-border-tertiary);
+  }
+  .protocols-header {
+    margin-bottom: 32px;
+  }
+  .protocols-title {
+    font-size: 22px;
+    font-weight: 500;
+    color: var(--color-text-primary);
+  }
+  .protocols-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 16px;
+  }
+  .protocol-card {
+    background: var(--color-background-primary);
+    border: 0.5px solid var(--color-border-tertiary);
+    border-radius: 2px;
+    padding: 24px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    position: relative;
+  }
+  .protocol-card.featured {
+    border: 2px solid var(--color-border-primary);
+  }
+  .protocol-badge {
+    position: absolute;
+    top: -10px;
+    left: 20px;
+    background: #0a0a0a;
+    color: #f5f5f5;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 1px;
+  }
+  .protocol-num {
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--color-text-tertiary);
+  }
+  .protocol-name {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--color-text-primary);
+    letter-spacing: 0.05em;
+  }
+  .protocol-desc {
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    line-height: 1.5;
+    flex: 1;
+  }
+  .protocol-price {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--color-text-primary);
+  }
+  .protocol-cta {
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    border: 0.5px solid var(--color-border-secondary);
+    padding: 8px 0;
+    text-align: center;
+    border-radius: 1px;
+    letter-spacing: 0.05em;
+  }
+  .protocol-card.featured .protocol-cta {
+    background: #0a0a0a;
+    color: #f5f5f5;
+    border-color: #0a0a0a;
+  }
+
+  /* COMPARAÇÃO */
+  .comparison {
+    padding: 64px 40px;
+    border-bottom: 0.5px solid var(--color-border-tertiary);
+  }
+  .comp-title {
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--color-text-primary);
+    margin-bottom: 24px;
+  }
+  .comp-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .comp-table th {
+    text-align: left;
+    padding: 10px 12px;
+    font-weight: 500;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-text-tertiary);
+    border-bottom: 0.5px solid var(--color-border-tertiary);
+  }
+  .comp-table td {
+    padding: 10px 12px;
+    color: var(--color-text-secondary);
+    border-bottom: 0.5px solid var(--color-border-tertiary);
+  }
+  .comp-table tr td:first-child {
+    color: var(--color-text-primary);
+    font-weight: 500;
+  }
+  .check { color: var(--color-text-primary); font-weight: 500; }
+  .dash { color: var(--color-text-tertiary); }
+
+  /* AUTORIDADE */
+  .authority {
+    padding: 56px 40px;
+    background: var(--color-background-secondary);
+    border-bottom: 0.5px solid var(--color-border-tertiary);
+  }
+  .auth-title {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--color-text-primary);
+    margin-bottom: 28px;
+    text-align: center;
+  }
+  .auth-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+  .auth-item {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: center;
+    text-align: center;
+  }
+  .auth-icon {
+    width: 32px;
+    height: 32px;
+    border: 0.5px solid var(--color-border-secondary);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+  }
+  .auth-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text-primary);
+  }
+  .auth-sub {
+    font-size: 12px;
+    color: var(--color-text-tertiary);
+  }
+
+  /* TRANSFORMAÇÃO */
+  .transformation {
+    padding: 64px 40px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    align-items: center;
+    border-bottom: 0.5px solid var(--color-border-tertiary);
+  }
+  .trans-img {
+    background: var(--color-background-secondary);
+    height: 200px;
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .trans-img span {
+    font-size: 11px;
+    color: var(--color-text-tertiary);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .trans-title {
+    font-size: 22px;
+    font-weight: 500;
+    color: var(--color-text-primary);
+    line-height: 1.3;
+    margin-bottom: 16px;
+  }
+  .trans-text {
+    font-size: 14px;
+    color: var(--color-text-secondary);
+    line-height: 1.7;
+  }
+
+  /* GARANTIA */
+  .guarantee {
+    padding: 40px;
+    background: var(--color-background-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    border-bottom: 0.5px solid var(--color-border-tertiary);
+  }
+  .guarantee-icon {
+    width: 36px;
+    height: 36px;
+    border: 0.5px solid var(--color-border-secondary);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+  .guarantee-text {
+    font-size: 13px;
+    color: var(--color-text-secondary);
+    max-width: 360px;
+    line-height: 1.5;
+  }
+  .guarantee-text strong {
+    color: var(--color-text-primary);
+    font-weight: 500;
+  }
+
+  /* CTA FINAL */
+  .cta-final {
+    background: #0a0a0a;
+    padding: 80px 40px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+  }
+  .cta-title {
+    font-size: 28px;
+    font-weight: 500;
+    color: #f5f5f5;
+    max-width: 400px;
+    line-height: 1.3;
+  }
+  .cta-sub {
+    font-size: 14px;
+    color: #666;
+  }
+  .cta-btn {
+    background: #f5f5f5;
+    color: #0a0a0a;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 14px 36px;
+    border-radius: 2px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .section-tag {
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--color-text-tertiary);
+    padding: 4px 0;
+    margin-bottom: 4px;
+    display: block;
+  }
+</style>
+
+<div class="page">
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-nav">
+      <span class="nav-logo">TRIA</span>
+      <div class="nav-links">
+        <span>Protocolos</span>
+        <span>Ciência</span>
+        <span>Conta</span>
+      </div>
+    </div>
+    <div class="hero-left" style="padding-top: 80px;">
+      <span class="hero-eyebrow">Tricologia · Reconstrução · Identidade</span>
+      <h1 class="hero-headline">Você não perdeu<br>só cabelo.</h1>
+      <p class="hero-sub">Perdeu o controle da sua imagem. A TRIA reconstrói isso através da ciência.</p>
+      <span class="hero-cta">Escolher protocolo</span>
+    </div>
+    <div class="hero-right">
+      <div class="hero-img-placeholder"><span>Foto produto</span></div>
+    </div>
+  </div>
+
+  <!-- IDENTIFICAÇÃO -->
+  <div class="identification">
+    <div class="id-left">
+      <span class="section-tag">Identificação</span>
+      <p class="id-title">Você reconhece<br>algum desses sinais?</p>
+      <div class="id-list">
+        <div class="id-item"><div class="id-dot"></div><span>Entradas mais fundas que antes</span></div>
+        <div class="id-item"><div class="id-dot"></div><span>Fios mais finos e sem volume</span></div>
+        <div class="id-item"><div class="id-dot"></div><span>Queda constante no dia a dia</span></div>
+        <div class="id-item"><div class="id-dot"></div><span>Aparência mais envelhecida</span></div>
+      </div>
+    </div>
+    <div class="id-right"><span>Imagem apoio</span></div>
+  </div>
+
+  <!-- REVELAÇÃO -->
+  <div class="revelation">
+    <span class="section-tag" style="color:#555;">Revelação</span>
+    <p class="rev-title">O problema não é só o cabelo. É o controle da sua própria imagem.</p>
+    <p class="rev-sub">Quando você perde presença, perde confiança. A TRIA existe para devolver isso.</p>
+  </div>
+
+  <!-- SOLUÇÃO -->
+  <div class="solution">
+    <div>
+      <p class="sol-eyebrow">Solução</p>
+      <p class="sol-title">Ciência aplicada à reconstrução da identidade masculina.</p>
+      <p class="sol-text">Cada protocolo TRIA é desenvolvido com base em tricologia — a ciência do fio. Não é cosmético. É método.</p>
+    </div>
+    <div class="sol-right"><span>Imagem laboratório</span></div>
+  </div>
+
+  <!-- PROTOCOLOS -->
+  <div class="protocols">
+    <div class="protocols-header">
+      <span class="section-tag">Protocolos</span>
+      <p class="protocols-title">Escolha o seu método.</p>
+    </div>
+    <div class="protocols-grid">
+      <div class="protocol-card">
+        <span class="protocol-num">Protocolo I</span>
+        <p class="protocol-name">ORIGIN</p>
+        <p class="protocol-desc">O início da mudança. Para quem está dando o primeiro passo.</p>
+        <p class="protocol-price">R$ 189</p>
+        <div class="protocol-cta">Começar</div>
+      </div>
+      <div class="protocol-card featured">
+        <span class="protocol-badge">Mais escolhido</span>
+        <span class="protocol-num">Protocolo II</span>
+        <p class="protocol-name">RECONSTRUCT</p>
+        <p class="protocol-desc">O protocolo principal. Reconstrução completa com resultado consistente.</p>
+        <p class="protocol-price">R$ 289</p>
+        <div class="protocol-cta">Escolher</div>
+      </div>
+      <div class="protocol-card">
+        <span class="protocol-num">Protocolo III</span>
+        <p class="protocol-name">DEFINE</p>
+        <p class="protocol-desc">Identidade completa. Cabelo e barba no mesmo método.</p>
+        <p class="protocol-price">R$ 249</p>
+        <div class="protocol-cta">Escolher</div>
+      </div>
+      <div class="protocol-card">
+        <span class="protocol-num">Completo</span>
+        <p class="protocol-name">TRIA COMPLETE</p>
+        <p class="protocol-desc">A experiência premium. Tudo que a ciência oferece em um protocolo.</p>
+        <p class="protocol-price">R$ 389</p>
+        <div class="protocol-cta">Escolher</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- COMPARAÇÃO -->
+  <div class="comparison">
+    <p class="comp-title">Não sabe qual escolher?</p>
+    <table class="comp-table">
+      <thead>
+        <tr>
+          <th>Benefício</th>
+          <th>Origin</th>
+          <th>Reconstruct</th>
+          <th>Define</th>
+          <th>Complete</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Tratamento capilar</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td></tr>
+        <tr><td>Protocolo completo</td><td class="dash">—</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td></tr>
+        <tr><td>Tratamento barba</td><td class="dash">—</td><td class="dash">—</td><td class="check">✓</td><td class="check">✓</td></tr>
+        <tr><td>Suplementação</td><td class="dash">—</td><td class="dash">—</td><td class="dash">—</td><td class="check">✓</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- AUTORIDADE -->
+  <div class="authority">
+    <p class="auth-title">Baseado em ciência. Desenvolvido para resultado.</p>
+    <div class="auth-grid">
+      <div class="auth-item">
+        <div class="auth-icon">◎</div>
+        <p class="auth-label">Tricologia aplicada</p>
+        <p class="auth-sub">Base científica em cada fórmula</p>
+      </div>
+      <div class="auth-item">
+        <div class="auth-icon">◈</div>
+        <p class="auth-label">Método, não produto</p>
+        <p class="auth-sub">Protocolos com consistência</p>
+      </div>
+      <div class="auth-item">
+        <div class="auth-icon">◉</div>
+        <p class="auth-label">Resultado mensurável</p>
+        <p class="auth-sub">Processo com começo e evolução</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- TRANSFORMAÇÃO -->
+  <div class="transformation">
+    <div class="trans-img"><span>Imagem transformação</span></div>
+    <div>
+      <span class="section-tag">Transformação</span>
+      <p class="trans-title">Mais do que fios. Uma nova presença.</p>
+      <p class="trans-text">Segurança, controle e identidade. O resultado de quem não deixa a imagem ao acaso.</p>
+    </div>
+  </div>
+
+  <!-- GARANTIA -->
+  <div class="guarantee">
+    <div class="guarantee-icon">◇</div>
+    <p class="guarantee-text"><strong>Compra segura.</strong> Se o protocolo não for o certo para você, a TRIA resolve. Sem burocracia.</p>
+  </div>
+
+  <!-- CTA FINAL -->
+  <div class="cta-final">
+    <span class="section-tag" style="color:#555;">Próximo passo</span>
+    <p class="cta-title">Comece o seu protocolo agora.</p>
+    <p class="cta-sub">Ciência para reconstruir sua identidade.</p>
+    <span class="cta-btn">Escolher protocolo</span>
+  </div>
+
+</div>
