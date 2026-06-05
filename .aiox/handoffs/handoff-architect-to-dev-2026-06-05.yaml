@@ -1,0 +1,71 @@
+handoff:
+  from_agent: "architect"
+  to_agent: "dev"
+  timestamp: "2026-06-05T00:00:00Z"
+  session_id: "scaffold-phase-1"
+
+story_context:
+  epic_id: "1"
+  epic_title: "Foundation & Catalog Setup"
+  story_id: "1.1"
+  story_title: "Project Initial Scaffold"
+  story_path: "docs/stories/1.1.story.md"
+  story_status: "ready_for_dev"
+  current_task: "Setup Next.js application"
+  branch: "master"
+  next_story: "1.2"
+
+decisions:
+  - "Single app monorepo (Next.js frontend + API routes, no separate backend)"
+  - "Server-First Components by default (SSR for SEO, client state only where needed)"
+  - "Supabase for Auth + Database (built-in RLS, reduces infrastructure)"
+  - "DatabaseService pattern encapsulates all SQL operations (no inline queries)"
+  - "QuizEvaluator service for recommendation algorithm logic"
+  - "Strict TypeScript with path aliases (@/*)"
+  - "Premium color palette: dark slate greys, emerald green accents"
+  - "Logger utility prevents PII logging (no names, diagnoses in cleartext)"
+  - "Health check endpoint validates system status"
+
+files_created:
+  - "package.json (Next.js 14, Supabase, Jest, Stripe/Pagar.me)"
+  - "tsconfig.json (strict mode, no implicit any)"
+  - "tailwind.config.ts (premium colors, serif headings, sans body)"
+  - "next.config.js (App Router, env vars)"
+  - ".eslintrc.json (extends next/core-web-vitals)"
+  - ".prettierrc (.semi, .trailingComma, .singleQuote)"
+  - "jest.config.js + jest.setup.js (RTL configured)"
+  - "src/app/layout.tsx (root layout, metadata)"
+  - "src/app/page.tsx (landing page with CTAs)"
+  - "src/app/globals.css (glass morphism, button utilities)"
+  - "src/app/api/health/route.ts (health check endpoint)"
+  - "src/types/index.ts (Product, Protocol, User, Diagnosis, Subscription)"
+  - "src/utils/logger.ts (structured logging, no PII)"
+  - "src/services/db-service.ts (DatabaseService for Supabase)"
+  - "src/services/quiz-evaluator.ts (QuizEvaluator logic)"
+  - "supabase/migrations/001_initial_schema.sql (DDL + RLS + seed)"
+  - "docs/stories/1.1.story.md (story file with AC and DoD)"
+
+blockers: []
+
+next_actions:
+  - "Run 'npm install' to install dependencies"
+  - "Implement Story 1.2: Database Migration Schema (apply SQL, validate seed data)"
+  - "Implement Story 1.3: Catalog API & Rendering (/api/catalog, catalog page)"
+  - "After Story 1.3, Epic 1 is complete; handoff to @po for validation before Epic 2"
+
+git_state:
+  branch: "master"
+  commits_ahead: "1"
+  last_commit: "feat: scaffold Next.js 14 full-stack application [Story 1.1]"
+
+dev_mode: "YOLO"
+max_qa_iterations: "2"
+coderabbit_enabled: true
+
+notes: |
+  - Environment variables (.env) must be populated with Supabase credentials before running migrations
+  - npm run typecheck and npm run lint must pass before marking AC complete
+  - Health check endpoint is standalone (no DB dependency) for quick validation
+  - Database schema already defined; @dev task is to apply migrations and validate
+  - Quiz evaluator logic is implemented but not yet integrated with API route
+  - All service layers use Supabase client with error logging (no cleartext secrets)
