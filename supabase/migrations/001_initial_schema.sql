@@ -3,7 +3,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Products Table
 CREATE TABLE public.products (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     sku TEXT UNIQUE NOT NULL,
     name TEXT NOT NULL,
     price NUMERIC(10,2) NOT NULL,
@@ -15,7 +15,7 @@ CREATE TABLE public.products (
 
 -- Protocols Table
 CREATE TABLE public.protocols (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT UNIQUE NOT NULL CHECK (name IN ('Origin', 'Reconstruct', 'Define', 'Complete')),
     price NUMERIC(10,2) NOT NULL,
     original_price NUMERIC(10,2) NOT NULL,
@@ -34,7 +34,7 @@ CREATE TABLE public.profiles (
 
 -- User Diagnoses Table
 CREATE TABLE public.user_diagnoses (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     answers JSONB NOT NULL,
     recommended_protocol_id UUID REFERENCES public.protocols(id) NOT NULL,
@@ -43,7 +43,7 @@ CREATE TABLE public.user_diagnoses (
 
 -- Subscriptions Table
 CREATE TABLE public.subscriptions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
     protocol_id UUID REFERENCES public.protocols(id) NOT NULL,
     status TEXT NOT NULL CHECK (status IN ('active', 'paused', 'cancelled', 'past_due')),
