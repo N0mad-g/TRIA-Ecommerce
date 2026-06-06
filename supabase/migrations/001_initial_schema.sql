@@ -73,7 +73,7 @@ CREATE POLICY "Users can insert own diagnoses" ON public.user_diagnoses
 CREATE POLICY "Users can read own subscriptions" ON public.subscriptions
     FOR SELECT USING (auth.uid() = user_id);
 
--- Seed Data: Products
+-- Seed Data: Products (inserted first to generate UUIDs)
 INSERT INTO public.products (sku, name, price, category, active_ingredients, inci) VALUES
   ('TRIA-P1', 'Shampoo Reconstrutor', 89.90, 'Cabelo', '{"silk_proteins": "Restore elasticity", "keratin": "Strengthen strands"}', 'Aqua, Silicones, Keratin, Amino Acids'),
   ('TRIA-P2', 'Condicionador Profundo', 99.90, 'Cabelo', '{"panthenol": "Moisturize", "argan_oil": "Nourish"}', 'Aqua, Argan Oil, Panthenol, Natural Oils'),
@@ -81,9 +81,54 @@ INSERT INTO public.products (sku, name, price, category, active_ingredients, inc
   ('TRIA-P4', 'Bálsamo para Barba', 85.00, 'Barba', '{"jojoba_oil": "Condition", "beeswax": "Define"}', 'Beeswax, Jojoba Oil, Shea Butter, Essential Oils'),
   ('TRIA-P5', 'Tônico Capilar', 119.90, 'Cabelo', '{"caffeine": "Stimulate", "zinc": "Regulate"}', 'Aqua, Caffeine, Zinc, Plant Extracts');
 
--- Seed Data: Protocols
+-- Seed Data: Protocols (using CTE to map SKUs to actual product UUIDs)
+WITH product_ids AS (
+  SELECT id, sku FROM public.products WHERE sku IN ('TRIA-P1', 'TRIA-P2', 'TRIA-P3', 'TRIA-P4', 'TRIA-P5')
+)
 INSERT INTO public.protocols (name, price, original_price, products, narrative) VALUES
-  ('Origin', 249.90, 314.70, ARRAY['p1', 'p2', 'p4']::uuid[], 'Comece sua jornada de reconstrução capilar com o protocolo Origin.'),
-  ('Reconstruct', 329.90, 414.70, ARRAY['p1', 'p2', 'p3', 'p5']::uuid[], 'Recuperação ativa para pós-operatório recente e queda ativa.'),
-  ('Define', 189.90, 214.80, ARRAY['p4', 'p5']::uuid[], 'Soluções premium especializadas para uma barba impecável.'),
-  ('Complete', 449.90, 564.50, ARRAY['p1', 'p2', 'p3', 'p4', 'p5']::uuid[], 'A solução mais abrangente: cabelo e barba em um protocolo.') ON CONFLICT (name) DO NOTHING;
+  (
+    'Origin',
+    249.90,
+    314.70,
+    ARRAY[
+      (SELECT id FROM product_ids WHERE sku = 'TRIA-P1'),
+      (SELECT id FROM product_ids WHERE sku = 'TRIA-P2'),
+      (SELECT id FROM product_ids WHERE sku = 'TRIA-P4')
+    ],
+    'Comece sua jornada de reconstrução capilar com o protocolo Origin.'
+  ),
+  (
+    'Reconstruct',
+    329.90,
+    414.70,
+    ARRAY[
+      (SELECT id FROM product_ids WHERE sku = 'TRIA-P1'),
+      (SELECT id FROM product_ids WHERE sku = 'TRIA-P2'),
+      (SELECT id FROM product_ids WHERE sku = 'TRIA-P3'),
+      (SELECT id FROM product_ids WHERE sku = 'TRIA-P5')
+    ],
+    'Recuperação ativa para pós-operatório recente e queda ativa.'
+  ),
+  (
+    'Define',
+    189.90,
+    214.80,
+    ARRAY[
+      (SELECT id FROM product_ids WHERE sku = 'TRIA-P4'),
+      (SELECT id FROM product_ids WHERE sku = 'TRIA-P5')
+    ],
+    'Soluções premium especializadas para uma barba impecável.'
+  ),
+  (
+    'Complete',
+    449.90,
+    564.50,
+    ARRAY[
+      (SELECT id FROM product_ids WHERE sku = 'TRIA-P1'),
+      (SELECT id FROM product_ids WHERE sku = 'TRIA-P2'),
+      (SELECT id FROM product_ids WHERE sku = 'TRIA-P3'),
+      (SELECT id FROM product_ids WHERE sku = 'TRIA-P4'),
+      (SELECT id FROM product_ids WHERE sku = 'TRIA-P5')
+    ],
+    'A solução mais abrangente: cabelo e barba em um protocolo.'
+  ) ON CONFLICT (name) DO NOTHING;
