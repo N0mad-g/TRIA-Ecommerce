@@ -31,8 +31,8 @@ Este site tem identidade **minimalista com pegada de ciência e tecnologia**, co
 
 ## Seção 1 — Paleta e tom visual
 
-- **Cores:** neutros — branco, preto e tons de cinza. Sem cores vibrantes por enquanto.
-- **Sensação:** clean, técnico, elegante. Como um produto de tecnologia premium.
+- **Cores:** paleta "Obsidian Chrome" — onyx (`#0A0A0A`), mountain (`#1e2a33`), slate (`#536878`), slate-light (`#7a96a8`), arctic (`#D3D1CE`), alabaster (`#E5E4E2`), white (`#FFFFFF`). Ver `CLAUDE.md` / briefing da marca para regra de uso de cada cor por seção.
+- **Sensação:** dark luxury, científico, masculino, sofisticado. Como um produto de tecnologia premium.
 - **Tipografia em animação:** reveals devem ser suaves, nunca abruptos.
 - **Sombras e blur:** use com moderação para criar profundidade sem poluição.
 
@@ -40,94 +40,73 @@ Este site tem identidade **minimalista com pegada de ciência e tecnologia**, co
 
 ## Seção 2 — Bibliotecas utilizadas
 
-### GSAP
-
-- Usar para animações de scroll, timelines complexas e efeitos de texto.
-- **Instalar:** `npm install gsap`
-- **Plugins necessários:** `ScrollTrigger` (scroll animations), `SplitText` (text reveals)
-- SEMPRE registre os plugins antes de usar:
-  ```ts
-  import { gsap } from "gsap";
-  import { ScrollTrigger } from "gsap/ScrollTrigger";
-  gsap.registerPlugin(ScrollTrigger);
-  ```
-- SEMPRE use `useGSAP` hook do pacote `@gsap/react` em vez de `useEffect` para animações GSAP em componentes React:
-  ```ts
-  import { useGSAP } from "@gsap/react";
-  gsap.registerPlugin(useGSAP);
-  ```
-- SEMPRE faça cleanup das animações ao desmontar o componente usando o retorno do `useGSAP` ou `ScrollTrigger.kill()`.
-
 ### Framer Motion
 
-- Usar para transições de página, animações de entrada/saída de componentes e hover effects declarativos.
+- Biblioteca principal de animação do projeto: scroll reveals, transições de página, entrada/saída de componentes e hover effects.
 - **Instalar:** `npm install framer-motion`
 - Prefira `motion` components nativos (`motion.div`, `motion.section`) a wrappers desnecessários.
+- Use `whileInView` + `viewport={{ once: true }}` para scroll reveals (substitui GSAP ScrollTrigger).
 - Use `AnimatePresence` para animações de saída de componentes.
 - Use `variants` para organizar estados de animação — nunca inline quando houver mais de 2 estados.
 
-### Lenis (scroll suave)
+### Canvas API nativo
 
-- Usar para smooth scroll global.
-- **Instalar:** `npm install lenis`
-- Inicialize no layout raiz (`src/app/layout.tsx`) e conecte ao GSAP ScrollTrigger:
-  ```ts
-  lenis.on("scroll", ScrollTrigger.update);
-  gsap.ticker.add((time) => lenis.raf(time * 1000));
-  gsap.ticker.lagSmoothing(0);
-  ```
+- Usar para os efeitos de fundo autorais do site (ex: `DNACanvas` no hero, `RitualCanvas` na seção de ritual) — partículas, traços e efeitos que não se encaixam em variants declarativos do Framer Motion.
+- Sempre rodar dentro de `useEffect`/hook customizado, com `requestAnimationFrame`, e cancelar o frame + remover listeners no cleanup.
+- Pausar o loop de animação quando `prefers-reduced-motion: reduce` estiver ativo (renderizar um frame estático).
+
+### Não usar
+
+- ❌ NUNCA instale GSAP, Lenis, ou outra biblioteca de animação sem aprovação — o projeto usa Framer Motion + Canvas API nativo.
 
 ---
 
-## Seção 3 — Scroll Animations (GSAP + ScrollTrigger)
+## Seção 3 — Scroll Animations (Framer Motion `whileInView`)
 
 ### Padrões permitidos
 
 - **Fade in + translate Y:** elementos entrando de baixo para cima suavemente ao entrar no viewport.
-- **Stagger reveals:** listas e grids revelando itens em sequência com delay entre eles.
-- **Text reveal por linha:** linhas de texto revelando progressivamente (usar SplitText).
+- **Stagger reveals:** listas e grids revelando itens em sequência com delay entre eles (`staggerChildren` em `variants` do container).
+- **Text reveal palavra a palavra:** headlines revelando palavra por palavra via `motion.span` individuais (ver `AnimatedHeadline`).
 - **Parallax sutil:** elementos de fundo se movendo em velocidade diferente do scroll — use com moderação, máximo 20-30px de deslocamento.
-- **Pin sections:** seções fixadas durante o scroll para criar narrativa (usar com propósito claro).
+- **Delay escalonado por card:** usado nas seções de Benefícios/Protocolos (ex: 0ms / 900ms / 1800ms) via `transition.delay`.
 
 ### Valores padrão de timing
 
 ```ts
-// Duração padrão
-duration: 0.8; // segundos
+// Duração padrão de scroll reveal
+duration: 1.2; // segundos
 
-// Ease padrão para entradas
-ease: "power2.out";
+// Ease padrão de entrada
+ease: [0.16, 1, 0.3, 1]; // expo-out customizado
 
-// Ease para saídas
-ease: "power2.in";
+// Stagger entre itens de lista/grid
+staggerChildren: 0.15;
 
-// Ease para elementos de destaque
-ease: "expo.out";
-
-// Start padrão do ScrollTrigger
-start: "top 85%";
-
-// Stagger entre itens de lista
-stagger: 0.1;
+// viewport padrão do whileInView
+viewport: { once: true, margin: "-15% 0px" };
 ```
 
-### Exemplo base — fade in com translate
+### Exemplo base — scroll reveal com `whileInView`
 
-```ts
-gsap.fromTo(
-  element,
-  { opacity: 0, y: 40 },
-  {
+```tsx
+export const scrollRevealVariants = {
+  hidden: { opacity: 0, y: 40 },
+  visible: {
     opacity: 1,
     y: 0,
-    duration: 0.8,
-    ease: "power2.out",
-    scrollTrigger: {
-      trigger: element,
-      start: "top 85%",
-    },
+    transition: { duration: 1.2, ease: [0.16, 1, 0.3, 1] },
   },
-);
+};
+
+<motion.div
+  variants={scrollRevealVariants}
+  initial="hidden"
+  whileInView="visible"
+  viewport={{ once: true, margin: "-15% 0px" }}
+>
+  {/* conteúdo */}
+</motion.div>;
 ```
 
 ### O que evitar
@@ -135,7 +114,7 @@ gsap.fromTo(
 - ❌ Animações de scroll em todos os elementos da página — escolha os mais importantes.
 - ❌ `duration` acima de 1.2s para animações de entrada.
 - ❌ Parallax com deslocamento maior que 30px.
-- ❌ Múltiplos pins na mesma página sem propósito claro.
+- ❌ Repetir a animação toda vez que o elemento reentra no viewport — use `viewport={{ once: true }}`.
 
 ---
 
@@ -237,14 +216,13 @@ whileTap: { scale: 0.98 }
     "(prefers-reduced-motion: reduce)",
   ).matches;
   ```
-- No GSAP, use `gsap.matchMedia()` para aplicar animações condicionalmente:
+- Use o hook `useReducedMotion` do `framer-motion` para condicionar variants no React:
   ```ts
-  const mm = gsap.matchMedia();
-  mm.add("(prefers-reduced-motion: no-preference)", () => {
-    // animações aqui
-  });
+  import { useReducedMotion } from "framer-motion";
+  const prefersReducedMotion = useReducedMotion();
   ```
 - No Framer Motion, passe `transition: { duration: 0 }` quando `prefersReducedMotion` for `true`.
+- No Canvas API nativo (`DNACanvas`, `RitualCanvas`), verifique `prefersReducedMotion` antes de iniciar o loop de `requestAnimationFrame` e renderize um frame estático em vez disso.
 - Animações nunca devem bloquear interação ou leitura de conteúdo.
 
 ---
@@ -260,9 +238,9 @@ whileTap: { scale: 0.98 }
 
 ## Seção 8 — O que nunca fazer
 
-- ❌ NUNCA instale outras bibliotecas de animação sem aprovação (ex: anime.js, velocity.js, mo.js)
-- ❌ NUNCA use `setTimeout` para sincronizar animações — use timelines do GSAP
+- ❌ NUNCA instale outras bibliotecas de animação sem aprovação (ex: GSAP, Lenis, anime.js, velocity.js, mo.js)
+- ❌ NUNCA use `setTimeout` para sincronizar animações — use `transition.delay` do Framer Motion
 - ❌ NUNCA anime propriedades que causam reflow (width, height, top, left) — use `transform` e `opacity`
-- ❌ NUNCA deixe ScrollTriggers sem cleanup — sempre destrua ao desmontar
+- ❌ NUNCA deixe loops de `requestAnimationFrame` sem cleanup — sempre cancele ao desmontar
 - ❌ NUNCA aplique animações sem considerar mobile — teste comportamento em telas pequenas
 - ❌ NUNCA exagere — se a animação chama mais atenção que o conteúdo, remova

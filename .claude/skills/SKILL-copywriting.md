@@ -139,19 +139,21 @@ Estas regras garantem que copy e animações funcionem juntas sem conflito.
 
 ---
 
-## Seção 6 — Regras para protocolos (kits)
+## Seção 6 — Regras para protocolos
 
 Cada protocolo deve ter:
-1. Uma fase clara da jornada do cliente
-2. Uma promessa funcional objetiva
+1. Uma fase clara da jornada do cliente (público/`audience`)
+2. Uma promessa funcional objetiva (`description`)
 3. Uma emoção implícita (sem exagero)
 4. Copy que o torne mais desejável que produtos isolados
+5. O contraste claro entre preço de assinatura (`price`) e soma avulsa (`fullPrice`), reforçando a economia (`discount`) sem soar como cupom de desconto genérico
 
 Os protocolos existentes são:
-- **PROTOCOLO I — ORIGIN** → entrada, início da mudança
-- **PROTOCOLO II — RECONSTRUCT** → produto principal, mais vendido
-- **PROTOCOLO III — DEFINE** → foco em barba e identidade
-- **TRIA COMPLETE** → oferta premium
+- **Cuidados Diários** → manutenção simples e eficiente, entrada na marca
+- **Ritual de Autoridade** → protocolo principal, mais popular — presença e autoridade nos negócios
+- **Implante & Alopecia** → protocolo científico, pré/pós-implante capilar ou alopecia/calvície
+
+Não usar mais os nomes ORIGIN/RECONSTRUCT/DEFINE/TRIA COMPLETE — foram substituídos pelos três protocolos acima.
 
 ---
 
