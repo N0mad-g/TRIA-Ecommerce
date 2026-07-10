@@ -45,7 +45,7 @@ O modelo de receita combina assinatura mensal (maior LTV, desconto sobre avulso)
 1. NFR1: Interface mobile-first, com adaptação responsiva completa para desktop.
 2. NFR2: Alternância de fundo escuro/claro entre seções deve seguir ritmo intencional (impacto/decisão vs. alívio/prova/ciência).
 3. NFR3: Fotografia tratada em preto e branco de alto contraste (tom científico/sério).
-4. NFR4: Stack: Next.js 16+ (App Router), Tailwind CSS, Framer Motion, lucide-react, Stripe (Checkout + Subscriptions), deploy Vercel.
+4. NFR4: Stack: Next.js (App Router, sempre a versão estável mais recente no momento do scaffold — 16+ na escrita deste documento), Tailwind CSS, Framer Motion, lucide-react, Stripe (Checkout + Subscriptions), deploy Vercel.
 5. NFR5: Sem páginas próprias de pagamento/endereço — 100% delegado ao Stripe Checkout hospedado.
 6. NFR6: Rotas em tela única por área (sem listagem+detalhe separados), conforme wireframe de 5 telas.
 7. NFR7: Sistema deve operar dentro dos SLAs padrão das plataformas gerenciadas (Vercel, Supabase, Stripe) — sem infraestrutura de monitoramento/observabilidade customizada. Mantém o escopo enxuto de "lançar e validar" do projeto.
@@ -118,7 +118,7 @@ Unit + Integration: Jest + React Testing Library para componentes e lógica de p
 
 - **Banco de dados:** Postgres via Supabase _(assumido — brief não especifica persistência; mantém consistência com setup anterior do projeto)_. Armazena catálogo (protocolos/produtos), pedidos e estado de assinatura espelhado via webhook Stripe.
 - **Migrations:** via Supabase CLI, aplicadas incrementalmente por story (cada story que altera schema inclui seu próprio arquivo de migration) — sem tooling adicional de migration.
-- **Framework version:** Next.js 16+ (App Router), conforme preset ativo do AIOX (`nextjs-react`) — atualizado em relação ao Next.js 14 sugerido no brief original.
+- **Framework version:** Next.js (App Router), sempre a versão estável mais recente disponível no momento do scaffold — 16+ conforme preset ativo do AIOX (`nextjs-react`) na escrita deste documento, atualizado em relação ao Next.js 14 sugerido no brief original. Não travar num número fixo; confirmar versão real no dia do Story 1.1.
 - Styling: Tailwind CSS.
 - Animação: Framer Motion.
 - Ícones: lucide-react.
