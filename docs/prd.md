@@ -59,6 +59,14 @@ _(Trazido diretamente da seção 13 do Project Brief — "Restrições e Não-Es
 - Não criar categoria de produto "Styling" — Pomada Fix entra em "Cabelo".
 - Não exigir login para compra avulsa.
 
+### 2.4 User Responsibilities
+
+_(Tarefas humanas que precisam existir antes das stories que dependem delas — nenhum agente pode executá-las)_
+
+- **Conta Stripe:** criar conta, configurar modo live/test, e fornecer API keys (publishable + secret + webhook signing secret) antes da Story 2.1.
+- **Conta Supabase:** criar projeto e fornecer URL + chaves (anon/service role) antes da Story 1.2.
+- **Fotos dos 5 produtos:** já existem — serão fornecidas via pasta `assets/produtos/` antes da Story 1.2.
+
 ## 3. User Interface Design Goals
 
 ### 3.1 Overall UX Vision
@@ -109,6 +117,7 @@ Unit + Integration: Jest + React Testing Library para componentes e lógica de p
 ### 4.4 Additional Technical Assumptions and Requests
 
 - **Banco de dados:** Postgres via Supabase _(assumido — brief não especifica persistência; mantém consistência com setup anterior do projeto)_. Armazena catálogo (protocolos/produtos), pedidos e estado de assinatura espelhado via webhook Stripe.
+- **Migrations:** via Supabase CLI, aplicadas incrementalmente por story (cada story que altera schema inclui seu próprio arquivo de migration) — sem tooling adicional de migration.
 - **Framework version:** Next.js 16+ (App Router), conforme preset ativo do AIOX (`nextjs-react`) — atualizado em relação ao Next.js 14 sugerido no brief original.
 - Styling: Tailwind CSS.
 - Animação: Framer Motion.
@@ -137,6 +146,7 @@ Como dev, quero o projeto Next.js 16 (App Router) inicializado com Tailwind, Fra
 2: Tailwind CSS, Framer Motion e lucide-react instalados e configurados.
 3: Deploy automático na Vercel a partir do branch main funcional (preview URL acessível).
 4: Página inicial temporária ("health check") renderiza sem erro em produção.
+5: Jest + React Testing Library instalados e configurados, com um teste de exemplo passando (`npm test`).
 
 ### Story 1.2 Database Schema & Catalog Seed
 
