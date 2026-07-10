@@ -1201,3 +1201,29 @@ test('mantém status pending apenas enquanto a chamada ao Stripe está genuiname
 ```
 
 **E2E Test:** N/A — fora de escopo do MVP.
+
+## 15. Coding Standards
+
+> Padrões MÍNIMOS mas CRÍTICOS — regras que previnem os erros específicos encontrados nesta revisão, não um guia de estilo genérico. Usado pelo `@dev` durante a implementação.
+
+### 15.1 Critical Fullstack Rules
+
+- **Verificação de assinatura sempre primeiro:** qualquer handler que recebe webhook externo (só `/api/webhooks/stripe` no MVP) deve chamar `constructEvent`/validação de assinatura como a **primeira** linha de lógica, antes de qualquer parse de dado ou escrita — nunca reordenar (Seção 9.1).
+- **Nunca `pending` sem rollback:** qualquer Route Handler que marca estado como `pending` antes de uma chamada síncrona a serviço externo (Stripe) deve capturar erro dessa chamada e reverter o estado no mesmo request — nunca deixar `pending` sobrevivendo a uma falha síncrona (Seção 6.2, regra travada por teste na Seção 14.3).
+- **Secrets nunca sem prefixo `NEXT_PUBLIC_` a menos que sejam realmente públicos:** `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `SUPABASE_SERVICE_ROLE_KEY` nunca ganham esse prefixo — é a barreira técnica do Next.js contra vazamento pro bundle do client (Seção 11.2).
+- **Estado de servidor nunca duplicado no Zustand:** stores Zustand só guardam estado de UI efêmero (toggle, spinner de ação em andamento) — dado que existe no banco (catálogo, pedidos, assinatura) sempre é lido do servidor, nunca espelhado/cacheado manualmente no client (Seção 8.2).
+- **Rotas de API internas, nunca chamada direta ao Supabase/Stripe do client:** Client Components chamam `lib/api-client.ts` (Seção 8.4), nunca importam `lib/supabase`/`lib/stripe` diretamente — essas libs são server-only por design (Seção 9.1/9.2).
+- **Migrations no mesmo commit do código que depende delas:** nunca aplicar migration manualmente fora do fluxo de deploy (Seção 12.4) — o arquivo SQL entra no mesmo PR que o código.
+- **Money sempre em centavos (inteiro):** `priceCents`/`amountCents`, nunca float — evita erro de arredondamento em valores monetários (Seção 4).
+- **Qualquer mudança em `/api/account/subscription` mantém os 2 testes de rollback/sucesso passando:** os testes da Seção 14.3 (`route.test.ts` de troca de protocolo) são a trava de regressão da regra 2 acima — se um refactor exigir alterá-los, o novo comportamento precisa continuar garantindo "nunca `pending` sem saída" e "sucesso real do Stripe é o único caminho que legitimamente fica `pending`". Editar os testes para fazer passar sem essa garantia não conta como fix.
+
+### 15.2 Naming Conventions
+
+| Element | Frontend | Backend | Example |
+|---|---|---|---|
+| Components | PascalCase | — | `PricingToggle.tsx` |
+| Hooks/Stores | camelCase com `use` | — | `useBillingToggle.ts` |
+| Route Handlers | — | pasta kebab-case + `route.ts` | `app/api/checkout/one-time/route.ts` |
+| Data Access Functions | camelCase, verbo+entidade | camelCase, verbo+entidade | `getProtocols()`, `createOrderFromCheckoutSession()` |
+| Database Tables | — | snake_case | `stripe_checkout_session_id` |
+| TypeScript Interfaces | PascalCase, sem prefixo `I` | PascalCase, sem prefixo `I` | `Subscription`, `SocialProof` |
