@@ -566,6 +566,160 @@ export default async function ProdutosPage({ searchParams }: { searchParams: { i
 }
 ```
 
+## 9. Backend Architecture
+
+### 9.1 Service Architecture (Serverless)
+
+**Function Organization:** cada Route Handler é uma função serverless independente na Vercel — sem servidor de longa duração, sem estado compartilhado em memória entre requests.
+
+```text
+app/api/
+├── checkout/
+│   ├── one-time/route.ts        # POST — Story 2.3
+│   └── subscription/route.ts    # POST — Story 2.4
+├── webhooks/
+│   └── stripe/route.ts          # POST — Story 2.2
+└── account/
+    └── subscription/route.ts    # PATCH — Story 3.4 (Seção 6.2)
+```
+
+**Function Template (padrão de erro consistente, ver Seção 13):**
+
+```typescript
+// app/api/checkout/one-time/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { stripe } from '@/lib/stripe/client';
+import { getProductById } from '@/lib/data/catalog';
+import { apiError } from '@/lib/errors';
+
+export async function POST(req: NextRequest) {
+  const { productId } = await req.json();
+  const product = await getProductById(productId);
+  if (!product) return apiError(400, 'INVALID_PRODUCT', 'productId não encontrado ou sem stripePriceId');
+
+  const session = await stripe.checkout.sessions.create({
+    mode: 'payment',
+    line_items: [{ price: product.stripePriceId, quantity: 1 }],
+    success_url: `${process.env.APP_URL}/confirmacao?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${process.env.APP_URL}/produtos?item=${product.slug}`,
+  });
+
+  return NextResponse.json({ checkoutUrl: session.url });
+}
+```
+
+**Function Template — Webhook Handler (verificação de assinatura é o primeiro passo, sempre):**
+
+```typescript
+// app/api/webhooks/stripe/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { stripe } from '@/lib/stripe/client';
+import { createOrderFromCheckoutSession } from '@/lib/data/orders';
+import { syncSubscriptionFromStripeEvent } from '@/lib/data/subscriptions';
+
+export async function POST(req: NextRequest) {
+  const body = await req.text(); // corpo bruto — obrigatório para verificação de assinatura
+  const signature = req.headers.get('stripe-signature');
+
+  let event: Stripe.Event;
+  try {
+    // PRIMEIRO PASSO, antes de qualquer parse/processamento/escrita no banco.
+    // Sem isso, o endpoint aceitaria POST forjado de fora do Stripe como
+    // "pagamento aprovado" e criaria pedidos/assinaturas fraudulentos.
+    event = stripe.webhooks.constructEvent(body, signature!, process.env.STRIPE_WEBHOOK_SECRET!);
+  } catch (err) {
+    // Assinatura inválida/ausente — 400 imediato, nunca toca no banco.
+    return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
+  }
+
+  switch (event.type) {
+    case 'checkout.session.completed':
+      await createOrderFromCheckoutSession(event.data.object as Stripe.Checkout.Session);
+      break;
+    case 'customer.subscription.updated':
+    case 'customer.subscription.deleted':
+    case 'invoice.paid':
+      await syncSubscriptionFromStripeEvent(event);
+      break;
+  }
+
+  return NextResponse.json({ received: true }); // idempotência de escrita fica no data layer (23505), não aqui
+}
+```
+
+### 9.2 Database Architecture
+
+**Schema Design:** ver Seção 7 — DDL concreto é entregável do `@data-engineer`.
+
+**Data Access Layer (repository-lite, Seção 2.5):**
+
+```typescript
+// lib/data/orders.ts
+import { createServiceRoleSupabaseClient } from '@/lib/supabase/service-role';
+
+// Usado exclusivamente pelo webhook handler — service role bypassa RLS
+export async function createOrderFromCheckoutSession(session: Stripe.Checkout.Session) {
+  const supabase = createServiceRoleSupabaseClient();
+  const { error } = await supabase.from('orders').insert({
+    stripe_checkout_session_id: session.id, // UNIQUE — garante idempotência (Seção 7.2)
+    customer_email: session.customer_details?.email,
+    product_id: session.metadata?.productId,
+    amount_cents: session.amount_total,
+    status: 'paid',
+  });
+  // Erro de UNIQUE violation = evento duplicado do Stripe, não é falha real (idempotência)
+  if (error && error.code !== '23505') throw error;
+}
+```
+
+### 9.3 Authentication and Authorization
+
+**Auth Flow:**
+
+```mermaid
+sequenceDiagram
+    actor U as Usuário
+    participant L as /login (Client Component)
+    participant SA as Supabase Auth
+    participant M as Middleware (Next.js)
+    participant CA as /conta/* (Server Components)
+
+    U->>L: Informa e-mail/senha ou solicita magic link
+    L->>SA: signInWithPassword() / signInWithOtp()
+    SA-->>L: Sessão (cookie httpOnly)
+    L->>U: Redirect para /conta
+    U->>M: Requisição para rota protegida
+    M->>M: Verifica cookie de sessão (Supabase SSR helpers)
+    alt Sessão válida
+        M->>CA: Prossegue
+        CA->>SA: getServerSession() para dados do usuário
+    else Sessão ausente/expirada
+        M->>U: Redirect para /login?redirect=...
+    end
+```
+
+**Middleware/Guards:**
+
+```typescript
+// middleware.ts — protege /conta/* em nível de edge, antes do Server Component
+import { createMiddlewareSupabaseClient } from '@/lib/supabase/middleware';
+import { NextResponse, type NextRequest } from 'next/server';
+
+export async function middleware(req: NextRequest) {
+  const { supabase, res } = createMiddlewareSupabaseClient(req);
+  const { data: { session } } = await supabase.auth.getSession();
+
+  if (!session && req.nextUrl.pathname.startsWith('/conta')) {
+    const redirectUrl = new URL('/login', req.url);
+    redirectUrl.searchParams.set('redirect', req.nextUrl.pathname);
+    return NextResponse.redirect(redirectUrl);
+  }
+  return res;
+}
+
+export const config = { matcher: ['/conta/:path*'] };
+```
+
 **Protected Route Pattern:**
 
 ```typescript
