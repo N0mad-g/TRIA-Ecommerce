@@ -171,6 +171,7 @@ Como visitante, quero ver a Home com hero carrossel, seção de marca, benefíci
 3: Vitrine de Protocolos exibe os 3 protocolos com "Ritual de Autoridade" destacado, linkando para `/assinatura`.
 4: Vitrine de Produtos avulsos exibe amostra linkando para `/produtos`.
 5: Layout responsivo mobile-first, validado em viewport mobile e desktop.
+6: Formulário de captura de lead (slide 3 do hero) valida e-mail ou WhatsApp no client, envia para `POST /api/leads` (endpoint público, ver Architecture Seção 5) e persiste no banco — sem isso, o dado do FR1 é coletado e perdido. Exibe confirmação de sucesso e mensagem de erro em caso de falha de validação/rede.
 
 ### Story 1.4 About Page
 

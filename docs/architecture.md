@@ -253,6 +253,31 @@ interface Subscription {
 - Uma `Subscription` referencia um `Protocol` e um `User` (Supabase Auth).
 - Estado `pending` é o intermediário usado pela UI de "trocar/pausar/cancelar" (Story 3.4) enquanto aguarda confirmação do webhook.
 
+### 4.5 Lead
+
+**Purpose:** Captura do formulário do hero (FR1, Story 1.3 slide 3) — achado da revisão: FR1 existia desde o PRD original mas não tinha entidade nem rota até agora.
+
+**Key Attributes:**
+- id: string (UUID)
+- contact: string - E-mail ou WhatsApp, conforme o que o usuário informou
+- contactType: 'email' | 'whatsapp'
+- utmSource: string | null - Origem (ex: `instagram`), relevante porque o tráfego é orgânico de posts específicos (PRD Goal 1)
+- utmCampaign: string | null - Referência ao post/campanha de origem, se presente na URL
+- createdAt: string (ISO date)
+
+```typescript
+interface Lead {
+  id: string;
+  contact: string;
+  contactType: 'email' | 'whatsapp';
+  utmSource: string | null;
+  utmCampaign: string | null;
+  createdAt: string;
+}
+```
+
+**Relationships:** Nenhuma — captura isolada, sem vínculo com `User`/`Order`/`Subscription` no MVP (o mesmo e-mail pode aparecer como Lead e depois como Order sem join automático; correlação manual se necessário, fora do escopo do MVP).
+
 ## 5. API Specification
 
 > Estilo REST interno via Route Handlers (Seção 3). Não é uma API pública versionada — apenas os endpoints que o próprio frontend TRIA consome. Autenticação via sessão Supabase (cookie) nas rotas que exigem login; rotas de checkout avulso não exigem sessão (FR8).
@@ -314,6 +339,26 @@ paths:
                 properties:
                   checkoutUrl: { type: string }
         '400': { description: protocolId/billingInterval inválido }
+
+  /api/leads:
+    post:
+      summary: Persiste captura de lead do hero (Story 1.3, FR1)
+      security: []  # endpoint público de escrita — mitigado por rate limiting no Vercel Firewall (Seção 13.1)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [contact, contactType]
+              properties:
+                contact: { type: string }
+                contactType: { type: string, enum: [email, whatsapp] }
+                utmSource: { type: string }
+                utmCampaign: { type: string }
+      responses:
+        '201': { description: Lead persistido }
+        '400': { description: contact/contactType inválido }
+        '429': { description: Rate limit excedido (Vercel Firewall) }
 
   /api/webhooks/stripe:
     post:
@@ -465,6 +510,7 @@ sequenceDiagram
 | — (junção) | `product_related_protocols` | N:N para `Product.relatedProtocolIds` (corrigido na Seção 4.1 — produto pode estar em múltiplos protocolos) |
 | Order | `orders` | Escrito exclusivamente pelo webhook (Story 2.2) |
 | Subscription | `subscriptions` | Escrito pelo webhook (sucesso) ou revertido sincronamente pelo Route Handler (falha — Seção 6.2) |
+| Lead | `leads` | Escrito por `/api/leads` (Seção 4.5/5), endpoint público sem auth |
 | — | `auth.users` (Supabase Auth nativo) | Não é tabela custom — gerenciada pelo Supabase Auth |
 
 ### 7.2 Restrições que a arquitetura já define (para o @data-engineer respeitar)
@@ -771,7 +817,9 @@ sequenceDiagram
 **Middleware/Guards:**
 
 ```typescript
-// middleware.ts — protege /conta/* em nível de edge, antes do Server Component
+// middleware.ts — protege /conta/* (páginas) E /api/account/* (Route Handler)
+// Confirmado explicitamente: matcher cobre os dois, não só o path de página —
+// achado da revisão: eram paths diferentes e a versão anterior só cobria /conta/*.
 import { createMiddlewareSupabaseClient } from '@/lib/supabase/middleware';
 import { NextResponse, type NextRequest } from 'next/server';
 
@@ -779,7 +827,14 @@ export async function middleware(req: NextRequest) {
   const { supabase, res } = createMiddlewareSupabaseClient(req);
   const { data: { session } } = await supabase.auth.getSession();
 
-  if (!session && req.nextUrl.pathname.startsWith('/conta')) {
+  if (!session) {
+    const isApiRoute = req.nextUrl.pathname.startsWith('/api/');
+    if (isApiRoute) {
+      // /api/account/subscription: sem sessão → 401 JSON, não redirect
+      // (redirect não faz sentido para um caller de API — Seção 5 já declara supabaseSession)
+      return NextResponse.json({ error: { code: 'UNAUTHORIZED' } }, { status: 401 });
+    }
+    // /conta/*: sem sessão → redirect para login (comportamento original)
     const redirectUrl = new URL('/login', req.url);
     redirectUrl.searchParams.set('redirect', req.nextUrl.pathname);
     return NextResponse.redirect(redirectUrl);
@@ -787,7 +842,7 @@ export async function middleware(req: NextRequest) {
   return res;
 }
 
-export const config = { matcher: ['/conta/:path*'] };
+export const config = { matcher: ['/conta/:path*', '/api/account/:path*'] };
 ```
 
 ## 10. Unified Project Structure
@@ -978,3 +1033,34 @@ Deploy em si **não** é feito por esse workflow — a integração nativa Verce
 **Por que no build da Vercel, e não num step do GitHub Actions:** o workflow de teste (Seção 12.2) e o deploy da Vercel rodam em **paralelo**, sistemas independentes — um `supabase db push` dentro do GitHub Actions não teria nenhuma garantia de terminar antes do build da Vercel começar. Colocar a migration dentro do próprio `vercel-build` garante ordem sequencial e bloqueante: se a migration falhar, o build falha, e o deploy do código que espera o schema novo nunca acontece com o schema velho.
 
 **Consequência prática:** o arquivo de migration (`supabase/migrations/*.sql`, entregável do `@data-engineer`) precisa estar no mesmo PR/commit que o código que depende dele — nunca aplicado manualmente fora do fluxo de deploy, e nunca num PR separado que possa mesclar fora de ordem.
+
+## 13. Security and Performance
+
+### 13.1 Security Requirements
+
+**Frontend Security:**
+- **CSP Headers:** política restritiva via `next.config.js` (`headers()`) — `default-src 'self'`, permitindo apenas os domínios do Stripe.js/Checkout necessários para o redirect. Sem scripts de terceiros além do Stripe.
+- **XSS Prevention:** React/JSX escapa por padrão; `dangerouslySetInnerHTML` proibido em qualquer conteúdo vindo de input de usuário. Único input livre no MVP é o formulário de captura de lead (Story 1.3, slide 3) — vai direto para o Supabase como dado, nunca é re-renderizado como HTML.
+- **Secure Storage:** sessão via cookie `httpOnly` + `secure` + `sameSite=lax` (Supabase SSR helpers, Seção 9.3) — nunca token em `localStorage`/`sessionStorage`, onde um XSS conseguiria roubá-lo via JS.
+
+**Backend Security:**
+- **Input Validation:** todo Route Handler valida o body com schema (Zod) antes de qualquer uso — `productId`/`protocolId` devem existir no catálogo (Seção 4) antes de criar uma Checkout Session; requests malformados retornam `400` sem tocar em Stripe/Supabase.
+- **Rate Limiting:** nenhuma camada customizada de aplicação no MVP (consistente com NFR7) para as rotas autenticadas/de checkout — mitigação natural vem dos limites do Stripe e da proteção de borda da Vercel. **Exceção deliberada:** `/api/leads` (Seção 4.5/5) é escrita pública sem autenticação — ganha uma regra de rate limit no **Vercel Firewall** (nativo, configurado no dashboard, sem infraestrutura/código adicional — continua alinhado ao NFR7), escopada só a esse path, já que é o único endpoint que aceita escrita de qualquer visitante anônimo.
+- **CORS Policy:** nenhuma — Route Handlers são consumidos exclusivamente pelo próprio frontend, mesma origem; sem necessidade de abrir CORS para terceiros.
+
+**Authentication Security:**
+- **Token Storage:** cookie `httpOnly` gerenciado pelo Supabase Auth SSR — nunca acessível via JavaScript do client.
+- **Session Management:** expiração/refresh automáticos via Supabase Auth (Seção 9.3); middleware revalida a cada request a `/conta/*`.
+- **Password Policy:** padrão do Supabase Auth (mínimo 8 caracteres) — sem política customizada adicional no MVP; magic link como alternativa reduz a superfície de senha fraca.
+
+### 13.2 Performance Optimization
+
+**Frontend Performance:**
+- **Bundle Size Target:** sem budget rígido formal — meta informal de manter o JS inicial enxuto via Server Components por padrão (Seção 8.1); Client Components restritos a interatividade pontual (toggle, controles de carrossel). Medido via Vercel Analytics após o lançamento, não bloqueante para o MVP.
+- **Loading Strategy:** RSC busca dados no servidor (sem client-side fetching para catálogo); ISR (Seção 2.5) evita recomputar páginas que quase não mudam.
+- **Caching Strategy:** ISR (`revalidate: 3600`) nas páginas de catálogo; fetch cache nativo do Next.js para chamadas repetidas dentro do mesmo build.
+
+**Backend Performance:**
+- **Response Time Target:** sem SLA formal (aderência ao SLA gerenciado, NFR7) — meta informal de Route Handlers de checkout responderem em <2s, considerando que dependem de uma chamada síncrona à API do Stripe (fora do nosso controle direto de latência).
+- **Database Optimization:** índices em foreign keys e nas colunas UNIQUE de idempotência (`stripe_checkout_session_id`, `stripe_subscription_id` — Seção 7.2); detalhamento fino de índice é entregável do `@data-engineer`.
+- **Caching Strategy:** nenhuma camada de cache de aplicação — decisão da Seção 3 (Cache: Nenhum), coberta pelo ISR e fetch cache nativo.
