@@ -1064,3 +1064,140 @@ Deploy em si **não** é feito por esse workflow — a integração nativa Verce
 - **Response Time Target:** sem SLA formal (aderência ao SLA gerenciado, NFR7) — meta informal de Route Handlers de checkout responderem em <2s, considerando que dependem de uma chamada síncrona à API do Stripe (fora do nosso controle direto de latência).
 - **Database Optimization:** índices em foreign keys e nas colunas UNIQUE de idempotência (`stripe_checkout_session_id`, `stripe_subscription_id` — Seção 7.2); detalhamento fino de índice é entregável do `@data-engineer`.
 - **Caching Strategy:** nenhuma camada de cache de aplicação — decisão da Seção 3 (Cache: Nenhum), coberta pelo ISR e fetch cache nativo.
+
+## 14. Testing Strategy
+
+### 14.1 Testing Pyramid
+
+```text
+          E2E Tests
+         (nenhum no MVP — PRD 4.3)
+             /    \
+      Integration Tests
+    (webhook, checkout session)
+         /            \
+  Frontend Unit    Backend Unit
+  (componentes,     (Route Handlers,
+   preço/toggle)     data layer)
+```
+
+Pirâmide invertida do padrão clássico de propósito — sem camada E2E (decisão explícita do PRD, Seção 4.3), o peso relativo fica maior nos testes de Integration cobrindo os pontos de maior risco já identificados nesta revisão: assinatura de webhook (Seção 9.1) e idempotência (Seção 9.2).
+
+### 14.2 Test Organization
+
+**Frontend Tests:**
+
+```text
+components/
+├── protocol/
+│   ├── PricingToggle.tsx
+│   └── PricingToggle.test.tsx      # co-localizado, Jest + RTL
+├── product/
+│   ├── ProductCarousel.tsx
+│   └── ProductCarousel.test.tsx
+lib/
+├── stores/
+│   ├── billing-toggle.ts
+│   └── billing-toggle.test.ts       # lógica pura de cálculo de preço
+```
+
+**Backend Tests:**
+
+```text
+app/api/
+├── checkout/one-time/
+│   ├── route.ts
+│   └── route.test.ts                # mock do Stripe SDK, valida payload/erros
+├── webhooks/stripe/
+│   ├── route.ts
+│   └── route.test.ts                # constructEvent com assinatura inválida → 400 (Seção 9.1)
+├── account/subscription/
+│   ├── route.ts
+│   └── route.test.ts                # rollback de pending quando Stripe falha (Seção 6.2) — trava de regressão do achado mais sério desta revisão
+lib/data/
+├── orders.ts
+└── orders.test.ts                    # idempotência: insert duplicado não lança (Seção 9.2)
+```
+
+**E2E Tests:** N/A — fora de escopo do MVP (PRD Seção 4.3).
+
+### 14.3 Test Examples
+
+**Frontend Component Test:**
+
+```typescript
+// components/protocol/PricingToggle.test.tsx
+import { render, screen, fireEvent } from '@testing-library/react';
+import { PricingToggle } from './PricingToggle';
+
+test('alterna preço exibido ao clicar em Anual', () => {
+  render(<PricingToggle protocol={ritualDeAutoridadeMock} />);
+  fireEvent.click(screen.getByRole('tab', { name: 'Anual' }));
+  expect(screen.getByText(/R\$\s*2\.490/)).toBeInTheDocument(); // preço anual, não mensal
+});
+```
+
+**Backend API Test:**
+
+```typescript
+// app/api/webhooks/stripe/route.test.ts
+import { POST } from './route';
+
+test('rejeita evento com assinatura inválida antes de tocar no banco', async () => {
+  const req = new Request('http://localhost/api/webhooks/stripe', {
+    method: 'POST',
+    headers: { 'stripe-signature': 'assinatura-forjada' },
+    body: JSON.stringify({ type: 'checkout.session.completed' }),
+  });
+  const res = await POST(req as any);
+  expect(res.status).toBe(400);
+  // Nenhuma chamada ao Supabase deve ter ocorrido — verificado via mock não invocado
+});
+```
+
+**Backend API Test — Rollback de `pending` (regressão do achado mais sério da revisão, Seção 6.2):**
+
+```typescript
+// app/api/account/subscription/route.test.ts
+import { PATCH } from './route';
+import { stripe } from '@/lib/stripe/client';
+
+jest.mock('@/lib/stripe/client');
+
+test('reverte Subscription.status para o snapshot anterior quando o Stripe falha, nunca deixa pending sem saída', async () => {
+  // Snapshot: assinatura estava 'active' no protocolo A antes da tentativa de troca
+  await seedSubscription({ id: 'sub_1', status: 'active', protocolId: 'protocolo-a' });
+
+  (stripe.subscriptions.update as jest.Mock).mockRejectedValueOnce(
+    new Error('Stripe API timeout')
+  );
+
+  const req = new Request('http://localhost/api/account/subscription', {
+    method: 'PATCH',
+    body: JSON.stringify({ action: 'change', newProtocolId: 'protocolo-b' }),
+  });
+  const res = await PATCH(req as any);
+
+  expect(res.status).toBeGreaterThanOrEqual(400); // erro síncrono, não 202
+
+  const subscription = await getSubscriptionById('sub_1');
+  expect(subscription.status).toBe('active');        // nunca 'pending'
+  expect(subscription.protocolId).toBe('protocolo-a'); // nunca trocou pro B
+});
+
+test('mantém status pending apenas enquanto a chamada ao Stripe está genuinamente em voo', async () => {
+  (stripe.subscriptions.update as jest.Mock).mockResolvedValueOnce({ id: 'sub_1' });
+
+  const req = new Request('http://localhost/api/account/subscription', {
+    method: 'PATCH',
+    body: JSON.stringify({ action: 'change', newProtocolId: 'protocolo-b' }),
+  });
+  const res = await PATCH(req as any);
+
+  expect(res.status).toBe(202); // sucesso na chamada ao Stripe = assíncrono, aguarda webhook
+  const subscription = await getSubscriptionById('sub_1');
+  expect(subscription.status).toBe('pending'); // aqui SIM é o estado correto — webhook ainda não chegou
+});
+```
+
+**E2E Test:** N/A — fora de escopo do MVP.
