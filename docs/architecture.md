@@ -949,10 +949,32 @@ Deploy em si **não** é feito por esse workflow — a integração nativa Verce
 
 ### 12.3 Environments
 
-| Environment | Frontend URL | Backend URL | Purpose |
-|---|---|---|---|
-| Development | `localhost:3000` | `localhost:3000/api/*` | Desenvolvimento local |
-| Preview | `tria-git-<branch>.vercel.app` (auto por PR) | mesmo domínio `/api/*` | Revisão de PR antes do merge |
-| Production | domínio definitivo TRIA (a definir — DNS não coberto neste MVP) | mesmo domínio `/api/*` | Ambiente live |
+| Environment | Frontend URL | Backend URL | Purpose | Stripe Keys |
+|---|---|---|---|---|
+| Development | `localhost:3000` | `localhost:3000/api/*` | Desenvolvimento local | **Test mode** (`sk_test_...`, `whsec_...` do `stripe listen`) |
+| Preview | `tria-git-<branch>.vercel.app` (auto por PR) | mesmo domínio `/api/*` | Revisão de PR antes do merge | **Test mode** (`sk_test_...`) |
+| Production | domínio definitivo TRIA (a definir — DNS não coberto neste MVP) | mesmo domínio `/api/*` | Ambiente live | **Live mode** (`sk_live_...`) |
 
 **Nota:** ambiente de "Staging" separado não existe — Preview deployments da Vercel (um por PR, efêmero) cumprem esse papel sem precisar de infraestrutura dedicada, consistente com NFR7 (sem infra customizada).
+
+**Nota — chaves Stripe por ambiente (risco real, não hipotético):** a Vercel permite variáveis de ambiente diferentes por contexto (Development/Preview/Production). `STRIPE_SECRET_KEY` e `STRIPE_WEBHOOK_SECRET` **devem** ser configuradas como chaves de **test mode** em Development e Preview, e **live mode** apenas em Production. Sem essa separação explícita no dashboard da Vercel, um Preview deployment de PR aberto processaria cobrança de cartão real — inaceitável para um ambiente que qualquer PR aberto expõe publicamente. Isso é configuração no dashboard da Vercel (Settings → Environment Variables → escopo por ambiente), não código; registrado aqui como requisito de setup do Story 1.1/2.1, não como algo que o código precisa verificar em runtime.
+
+### 12.4 Migrations no Pipeline de Deploy
+
+> Resolve o fio solto da Seção 3/4.4 (NFR: "migrations via Supabase CLI, incrementais por story") — define **quando e onde** isso roda, não só que ferramenta usa.
+
+**Decisão:** um único projeto Supabase é compartilhado entre Preview e Production (sem banco efêmero por PR — over-engineering para o escopo enxuto do MVP, NFR7). Migrations rodam **apenas no build de Production** (branch `main`), como parte do próprio `build` command da Vercel — nunca em Preview, para que um PR aberto (ainda não revisado) não altere o schema compartilhado antes do merge.
+
+```json
+// package.json
+{
+  "scripts": {
+    "build": "next build",
+    "vercel-build": "if [ \"$VERCEL_ENV\" = \"production\" ]; then supabase db push; fi && next build"
+  }
+}
+```
+
+**Por que no build da Vercel, e não num step do GitHub Actions:** o workflow de teste (Seção 12.2) e o deploy da Vercel rodam em **paralelo**, sistemas independentes — um `supabase db push` dentro do GitHub Actions não teria nenhuma garantia de terminar antes do build da Vercel começar. Colocar a migration dentro do próprio `vercel-build` garante ordem sequencial e bloqueante: se a migration falhar, o build falha, e o deploy do código que espera o schema novo nunca acontece com o schema velho.
+
+**Consequência prática:** o arquivo de migration (`supabase/migrations/*.sql`, entregável do `@data-engineer`) precisa estar no mesmo PR/commit que o código que depende dele — nunca aplicado manualmente fora do fluxo de deploy, e nunca num PR separado que possa mesclar fora de ordem.
