@@ -362,3 +362,276 @@ components:
 Não é uma rota de API — é lido diretamente por um **Server Component** em `/confirmacao?session_id=...`, chamando `stripe.checkout.sessions.retrieve(session_id, { expand: ['line_items'] })` via Stripe SDK server-side.
 
 **Por que não ler do Supabase (repository-lite padrão das outras páginas):** existe uma corrida entre o redirect do Stripe de volta pro navegador e a entrega do webhook (Story 2.2) — o registro pode ainda não existir no banco no instante em que a Confirmation Page renderiza. A API do Stripe já tem o resultado autoritativo assim que o Checkout Session é concluído, então ler direto do Stripe evita esperar o webhook. O banco (via webhook) continua sendo a fonte de verdade para o que persiste e aparece depois em `/conta` (Story 3.3) — a leitura direta do Stripe é exclusiva da página de confirmação imediata.
+
+## 6. Core Workflows
+
+### 6.1 Compra Avulsa (Story 2.3 → 2.5)
+
+```mermaid
+sequenceDiagram
+    actor U as Usuário
+    participant PP as Product Page (RSC)
+    participant RH as Route Handler /checkout/one-time
+    participant S as Stripe
+    participant WH as Webhook Handler
+    participant DB as Supabase
+
+    U->>PP: Clica "Comprar"
+    PP->>RH: POST { productId }
+    RH->>S: Cria Checkout Session (mode=payment)
+    S-->>RH: checkoutUrl
+    RH-->>PP: { checkoutUrl }
+    PP->>U: Redirect para Stripe Checkout
+    U->>S: Preenche pagamento
+    S-->>U: Redirect para /confirmacao?session_id=...
+    par Confirmação imediata (síncrona)
+        U->>S: Server Component lê session via SDK (5.1)
+        S-->>U: Dados do pedido (resumo exibido)
+    and Persistência (assíncrona)
+        S->>WH: webhook checkout.session.completed
+        WH->>DB: Cria Order (status=paid)
+    end
+```
+
+### 6.2 Trocar Protocolo (Story 3.4) — fluxo não-otimista
+
+```mermaid
+sequenceDiagram
+    actor U as Usuário
+    participant CA as Área do Cliente (Client Component)
+    participant RH as Route Handler /account/subscription
+    participant S as Stripe
+    participant WH as Webhook Handler
+    participant DB as Supabase
+
+    U->>CA: Clica "Trocar para Protocolo X"
+    CA->>CA: UI entra em estado local "processando"
+    CA->>RH: PATCH { action: change, newProtocolId }
+    RH->>DB: Lê status/protocolId atuais (snapshot pra rollback)
+    RH->>DB: Marca Subscription.status = 'pending'
+    RH->>S: subscription.update (proration_behavior: create_prorations)
+    alt Chamada ao Stripe bem-sucedida
+        S-->>RH: 200 aceito (mudança em processamento no Stripe)
+        RH-->>CA: 202 Accepted
+        CA->>U: Mantém UI em "processando" (não assume sucesso)
+        S->>WH: webhook customer.subscription.updated
+        WH->>DB: Atualiza Subscription (protocolId novo, status=active)
+        Note over CA,DB: Próxima leitura de /conta (revalidação ou poll)<br/>reflete status=active e sai de "processando"
+    else Erro na chamada ao Stripe (rede, timeout, price ID inválido)
+        S-->>RH: erro / exceção
+        RH->>DB: Reverte Subscription para snapshot anterior (nunca fica pending sem saída)
+        RH-->>CA: 4xx/5xx { error }
+        CA->>U: Sai de "processando" imediatamente, exibe erro + opção de tentar de novo
+    end
+```
+
+**Nota:** o caminho de erro é **síncrono** — o reverte-e-responde acontece dentro do mesmo request/response, sem depender de webhook ou polling. Só o caminho de sucesso é assíncrono (202 + webhook). Isso garante que `pending` nunca sobrevive a uma falha da chamada síncrona ao Stripe; só existe enquanto uma operação está genuinamente em voo no lado do Stripe.
+
+## 7. Database Schema
+
+> Por divisão de escopo acordada com @po/@architect: o DDL concreto (CREATE TABLE, índices, políticas RLS) é entregável do **@data-engineer**. Esta seção documenta o mapeamento conceitual e as restrições que a arquitetura já define, para orientar esse trabalho — não é o schema final.
+
+### 7.1 Mapeamento Conceitual → Tabelas
+
+| Data Model (Seção 4) | Tabela Supabase (proposta) | Observação |
+|---|---|---|
+| Product | `products` | Seed único, sem admin (PRD 2.4) |
+| Protocol | `protocols` | idem |
+| — (junção) | `protocol_products` | N:N para `Protocol.productIds` |
+| — (junção) | `product_related_protocols` | N:N para `Product.relatedProtocolIds` (corrigido na Seção 4.1 — produto pode estar em múltiplos protocolos) |
+| Order | `orders` | Escrito exclusivamente pelo webhook (Story 2.2) |
+| Subscription | `subscriptions` | Escrito pelo webhook (sucesso) ou revertido sincronamente pelo Route Handler (falha — Seção 6.2) |
+| — | `auth.users` (Supabase Auth nativo) | Não é tabela custom — gerenciada pelo Supabase Auth |
+
+### 7.2 Restrições que a arquitetura já define (para o @data-engineer respeitar)
+
+- `orders.stripe_checkout_session_id` deve ser **UNIQUE** — é a chave de idempotência do webhook (Story 2.2 AC4).
+- `subscriptions.stripe_subscription_id` deve ser **UNIQUE**.
+- `subscriptions.status` deve ser um enum/check constraint restrito a `pending | active | past_due | canceled` — nunca um valor livre (Seção 4.4).
+- **RLS:** `orders` e `subscriptions` legíveis apenas pelo próprio `user_id` (via `auth.uid()`); o webhook grava via service role, bypassando RLS.
+- `products` e `protocols` são publicamente legíveis (SELECT) sem RLS restritivo — catálogo não tem dado sensível.
+- Escrita em `products`/`protocols` restrita a service role — sem admin panel no MVP, só seed/migration (Story 1.2) escreve.
+
+### 7.3 Handoff
+
+DDL completo é o próximo entregável do `@data-engineer`, usando esta seção + Seção 4 (Data Models) como entrada — ver Seção 15 (Next Steps) para o prompt de handoff.
+
+> **Nota — catálogo público sem RLS é intencional:** `products`/`protocols` são o mesmo dado já renderizado em HTML público nas páginas estáticas (ISR, Seção 2.5) — RLS não protegeria nada aí, só adicionaria overhead de auth check numa leitura que já é pública por natureza do produto. Contraste deliberado com `orders`/`subscriptions`, que carregam PII (e-mail, valor pago, status) e por isso têm RLS por `user_id`.
+
+## 8. Frontend Architecture
+
+### 8.1 Component Architecture
+
+**Component Organization:**
+
+```text
+app/
+├── (marketing)/               # Rotas públicas com ISR (Seção 2.5)
+│   ├── page.tsx                # Home (/)
+│   ├── about/page.tsx           # About (/about)
+│   ├── produtos/page.tsx        # Product Page (browse+detail unificado)
+│   └── assinatura/page.tsx      # Assinatura Page (pricing + toggle)
+├── confirmacao/page.tsx        # Confirmation Page (dynamic, Seção 5.1)
+├── conta/                      # Área do Cliente (dynamic, protegida)
+│   ├── layout.tsx               # Sidebar (Story 3.2)
+│   ├── page.tsx                  # Resumo (Story 3.3)
+│   ├── pedidos/page.tsx
+│   ├── assinatura/page.tsx       # Gerenciar (Story 3.4)
+│   └── config/page.tsx
+├── login/page.tsx              # Story 3.1
+└── api/
+    ├── checkout/
+    │   ├── one-time/route.ts
+    │   └── subscription/route.ts
+    ├── webhooks/stripe/route.ts
+    └── account/subscription/route.ts
+
+components/
+├── ui/                          # Componentes genéricos (Button, Card, Badge)
+├── hero/                        # Carrossel da Home (Story 1.3)
+├── product/                     # Card, navegação por setas (Story 1.5)
+├── protocol/                    # Card de protocolo, toggle Anual/Mensal (Story 1.6)
+└── account/                     # Sidebar, cards de resumo (Story 3.2-3.4)
+
+lib/
+├── data/                        # Repository-lite (Seção 2.5): getProducts(), getProtocols()...
+├── stripe/                      # SDK client server-side, helpers de checkout
+├── supabase/                    # Clients (server/browser), auth helpers
+└── stores/                      # Zustand stores (ex: useBillingToggle)
+```
+
+**Component Template (padrão):**
+
+```typescript
+// Server Component por padrão — só vira Client Component quando precisa de
+// interatividade (onClick, useState, useEffect). Ex: components/protocol/PricingToggle.tsx
+'use client';
+
+import { useBillingToggle } from '@/lib/stores/billing-toggle';
+
+export function PricingToggle() {
+  const { interval, setInterval } = useBillingToggle();
+  return (
+    <div role="tablist" aria-label="Ciclo de cobrança">
+      <button role="tab" aria-selected={interval === 'monthly'} onClick={() => setInterval('monthly')}>
+        Mensal
+      </button>
+      <button role="tab" aria-selected={interval === 'annual'} onClick={() => setInterval('annual')}>
+        Anual
+      </button>
+    </div>
+  );
+}
+```
+
+### 8.2 State Management Architecture
+
+**State Structure:**
+
+```typescript
+// lib/stores/billing-toggle.ts — estado de UI puro, sem dado de servidor
+interface BillingToggleState {
+  interval: 'monthly' | 'annual';
+  setInterval: (interval: 'monthly' | 'annual') => void;
+}
+
+// lib/stores/subscription-action.ts — estado da ação em Story 3.4 (Seção 6.2)
+interface SubscriptionActionState {
+  status: 'idle' | 'processing' | 'error';
+  errorMessage: string | null;
+  startAction: (action: 'pause' | 'change' | 'cancel', newProtocolId?: string) => Promise<void>;
+}
+```
+
+**State Management Patterns:**
+
+- Zustand é só para estado de UI efêmero (toggle, estado de "processando" de uma ação em andamento) — nunca para dado de servidor (catálogo, pedidos, assinatura), que vive em Server Components/Supabase.
+- `Subscription.status` (Seção 4.4: `pending|active|past_due|canceled`) é lido do servidor a cada navegação/revalidação de `/conta` — o Zustand `SubscriptionActionState.status` (`idle|processing|error`) é local à interação do botão, não duplica o dado do servidor, só controla o spinner/disable do botão durante o request síncrono da Seção 6.2.
+- Após uma ação bem-sucedida (202), a página `/conta/assinatura` é revalidada (`router.refresh()`) para buscar o estado real do servidor, que pode ainda estar `pending` até o webhook confirmar — a UI reflete o dado real, não otimista.
+
+### 8.3 Routing Architecture
+
+**Route Organization:** ver árvore da Seção 8.1 — App Router padrão, sem rotas dinâmicas por slug (Product Page e Assinatura Page navegam por estado interno de índice/carrossel, não por `/produtos/[slug]`, conforme NFR6 do PRD).
+
+**Deep-linking para tráfego orgânico (link externo → produto/protocolo específico):** resolvido via query param, não rota dinâmica — `/produtos?item=balm-barba` e `/assinatura?item=ritual-de-autoridade`. O Server Component lê `searchParams.item`, resolve o índice do slug correspondente no catálogo (Seção 4) e usa esse índice como estado inicial do carrossel — a navegação em si continua 100% por índice interno (NFR6 intacto), só a origem do índice inicial pode vir de fora. Essencial para o Goal 1 do PRD (posts do Instagram do fundador linkando direto pro produto/protocolo promovido naquele conteúdo, não pra página genérica).
+
+```typescript
+// app/produtos/page.tsx
+export default async function ProdutosPage({ searchParams }: { searchParams: { item?: string } }) {
+  const products = await getProducts();
+  const initialIndex = searchParams.item
+    ? Math.max(0, products.findIndex((p) => p.slug === searchParams.item))
+    : 0;
+  return <ProductCarousel products={products} initialIndex={initialIndex} />;
+}
+```
+
+**Protected Route Pattern:**
+
+```typescript
+// app/conta/layout.tsx
+import { redirect } from 'next/navigation';
+import { getServerSession } from '@/lib/supabase/server';
+
+export default async function ContaLayout({ children }: { children: React.ReactNode }) {
+  const session = await getServerSession();
+  if (!session) redirect('/login?redirect=/conta');
+  return <AccountShell>{children}</AccountShell>;
+}
+```
+
+### 8.4 Frontend Services Layer
+
+**API Client Setup:**
+
+```typescript
+// lib/api-client.ts — wrapper fino sobre fetch para as rotas internas (Seção 5)
+export async function createOneTimeCheckout(productId: string) {
+  const res = await fetch('/api/checkout/one-time', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ productId }),
+  });
+  if (!res.ok) throw new ApiError(await res.json());
+  return res.json() as Promise<{ checkoutUrl: string }>;
+}
+```
+
+**Service Example:**
+
+```typescript
+// lib/data/catalog.ts — repository-lite (Seção 2.5), usado pelos Server Components
+import { createServerSupabaseClient } from '@/lib/supabase/server';
+import type { Protocol } from '@/types';
+
+export async function getProtocols(): Promise<Protocol[]> {
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase.from('protocols').select('*').order('monthly_price_cents', { ascending: false });
+  if (error) throw error;
+  return data;
+}
+```
+
+### 6.3 Assinatura Checkout (Story 2.4)
+
+```mermaid
+sequenceDiagram
+    actor U as Usuário
+    participant AP as Assinatura Page (RSC + toggle Client)
+    participant RH as Route Handler /checkout/subscription
+    participant S as Stripe
+    participant WH as Webhook Handler
+    participant DB as Supabase
+
+    U->>AP: Seleciona toggle Anual/Mensal, clica "Assinar"
+    AP->>RH: POST { protocolId, billingInterval }
+    RH->>DB: Busca stripePriceIdMonthly ou stripePriceIdAnnual
+    RH->>S: Cria Checkout Session (mode=subscription)
+    S-->>RH: checkoutUrl
+    RH-->>AP: { checkoutUrl }
+    AP->>U: Redirect para Stripe Checkout
+    U->>S: Confirma assinatura
+    S-->>U: Redirect para /confirmacao?session_id=...
+    S->>WH: webhook checkout.session.completed + customer.subscription.created
+    WH->>DB: Cria Subscription (status=active)
+```
