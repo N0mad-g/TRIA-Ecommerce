@@ -1217,6 +1217,94 @@ test('mantém status pending apenas enquanto a chamada ao Stripe está genuiname
 - **Money sempre em centavos (inteiro):** `priceCents`/`amountCents`, nunca float — evita erro de arredondamento em valores monetários (Seção 4).
 - **Qualquer mudança em `/api/account/subscription` mantém os 2 testes de rollback/sucesso passando:** os testes da Seção 14.3 (`route.test.ts` de troca de protocolo) são a trava de regressão da regra 2 acima — se um refactor exigir alterá-los, o novo comportamento precisa continuar garantindo "nunca `pending` sem saída" e "sucesso real do Stripe é o único caminho que legitimamente fica `pending`". Editar os testes para fazer passar sem essa garantia não conta como fix.
 
+## 16. Error Handling Strategy
+
+### 16.1 Error Flow
+
+```mermaid
+sequenceDiagram
+    actor U as Usuário
+    participant C as Client Component
+    participant AC as api-client.ts
+    participant RH as Route Handler
+    participant EH as lib/errors.ts (apiError)
+
+    C->>AC: chama função de serviço (ex: createOneTimeCheckout)
+    AC->>RH: fetch POST
+    alt Erro de validação/negócio (400/401/404)
+        RH->>EH: apiError(status, code, message)
+        EH-->>RH: NextResponse.json({ error: {...} })
+        RH-->>AC: resposta de erro estruturada
+        AC->>AC: throw new ApiError(body)
+        AC-->>C: erro propagado
+        C->>U: toast/mensagem de erro, sem quebrar a página
+    else Erro inesperado (exceção não tratada)
+        RH->>RH: catch genérico no nível do handler
+        RH->>EH: apiError(500, 'INTERNAL_ERROR', mensagem genérica)
+        Note over RH: Detalhe real do erro vai só para Vercel Logs<br/>(Seção 3) — nunca no corpo da resposta ao client
+        RH-->>AC: 500 com mensagem genérica
+        AC-->>C: erro propagado
+        C->>U: mensagem genérica + opção de tentar de novo
+    end
+```
+
+### 16.2 Error Response Format
+
+```typescript
+// lib/errors.ts — formato único usado por todas as rotas (Seção 5, 9)
+interface ApiErrorBody {
+  error: {
+    code: string;           // ex: 'INVALID_PRODUCT', 'UNAUTHORIZED', 'INTERNAL_ERROR'
+    message: string;        // mensagem segura para exibir ao usuário — nunca stack trace
+    requestId: string;      // correlaciona com Vercel Logs para debug
+    timestamp: string;      // ISO date
+  };
+}
+
+export function apiError(status: number, code: string, message: string) {
+  const requestId = crypto.randomUUID();
+  console.error(`[${requestId}] ${code}: ${message}`); // vai para Vercel Logs (Seção 3)
+  return NextResponse.json(
+    { error: { code, message, requestId, timestamp: new Date().toISOString() } },
+    { status }
+  );
+}
+```
+
+**Nota de consistência:** os exemplos de código nas Seções 9.1 (webhook: `{ error: 'Invalid signature' }`) e 5 (API spec) usaram formatos simplificados por brevidade didática — a implementação real (`@dev`) deve usar `apiError()` como único ponto de construção de resposta de erro em toda a API, sem exceção, para o formato acima ser de fato único.
+
+### 16.3 Frontend Error Handling
+
+```typescript
+// app/error.tsx — error boundary global do App Router, captura o que escapar
+// do tratamento local em cada Client Component
+'use client';
+
+export default function GlobalError({ error, reset }: { error: Error; reset: () => void }) {
+  return (
+    <div role="alert">
+      <p>Algo deu errado. Tente novamente.</p>
+      <button onClick={reset}>Tentar de novo</button>
+    </div>
+  );
+}
+```
+
+```typescript
+// lib/api-client.ts (Seção 8.4) — toda chamada de serviço lança ApiError tipado
+export class ApiError extends Error {
+  constructor(public body: { error: { code: string; message: string } }) {
+    super(body.error.message);
+  }
+}
+```
+
+### 16.4 Backend Error Handling
+
+Todo Route Handler segue o padrão: `try { ... } catch (err) { return apiError(...) }`, exemplificado no handler de webhook (Seção 9.1, já mostra o `try/catch` da verificação de assinatura) e no de troca de assinatura (Seção 6.2, já mostra o `catch` do rollback). `apiError()` é a única função que constrói corpo de resposta de erro — nenhum Route Handler monta `{ error: ... }` manualmente. `POST /api/leads` (Seção 4.5/5) segue o mesmo padrão para seus casos `400`/`201`.
+
+**Exceção documentada — `429` de `/api/leads`:** o rate limit é aplicado pelo **Vercel Firewall** na borda (Seção 13.1), antes da requisição alcançar o Route Handler — o corpo do `429` é o padrão da Vercel, não passa por `apiError()` e não tem o formato `ApiErrorBody` acima. É a única resposta de erro do sistema que não é construída pelo nosso código; o client (`api-client.ts`) deve tratar `429` sem assumir que `body.error.code` existe.
+
 ### 15.2 Naming Conventions
 
 | Element | Frontend | Backend | Example |
