@@ -1217,6 +1217,17 @@ test('mantém status pending apenas enquanto a chamada ao Stripe está genuiname
 - **Money sempre em centavos (inteiro):** `priceCents`/`amountCents`, nunca float — evita erro de arredondamento em valores monetários (Seção 4).
 - **Qualquer mudança em `/api/account/subscription` mantém os 2 testes de rollback/sucesso passando:** os testes da Seção 14.3 (`route.test.ts` de troca de protocolo) são a trava de regressão da regra 2 acima — se um refactor exigir alterá-los, o novo comportamento precisa continuar garantindo "nunca `pending` sem saída" e "sucesso real do Stripe é o único caminho que legitimamente fica `pending`". Editar os testes para fazer passar sem essa garantia não conta como fix.
 
+### 15.2 Naming Conventions
+
+| Element | Frontend | Backend | Example |
+|---|---|---|---|
+| Components | PascalCase | — | `PricingToggle.tsx` |
+| Hooks/Stores | camelCase com `use` | — | `useBillingToggle.ts` |
+| Route Handlers | — | pasta kebab-case + `route.ts` | `app/api/checkout/one-time/route.ts` |
+| Data Access Functions | camelCase, verbo+entidade | camelCase, verbo+entidade | `getProtocols()`, `createOrderFromCheckoutSession()` |
+| Database Tables | — | snake_case | `stripe_checkout_session_id` |
+| TypeScript Interfaces | PascalCase, sem prefixo `I` | PascalCase, sem prefixo `I` | `Subscription`, `SocialProof` |
+
 ## 16. Error Handling Strategy
 
 ### 16.1 Error Flow
@@ -1305,13 +1316,27 @@ Todo Route Handler segue o padrão: `try { ... } catch (err) { return apiError(.
 
 **Exceção documentada — `429` de `/api/leads`:** o rate limit é aplicado pelo **Vercel Firewall** na borda (Seção 13.1), antes da requisição alcançar o Route Handler — o corpo do `429` é o padrão da Vercel, não passa por `apiError()` e não tem o formato `ApiErrorBody` acima. É a única resposta de erro do sistema que não é construída pelo nosso código; o client (`api-client.ts`) deve tratar `429` sem assumir que `body.error.code` existe.
 
-### 15.2 Naming Conventions
+## 17. Monitoring and Observability
 
-| Element | Frontend | Backend | Example |
-|---|---|---|---|
-| Components | PascalCase | — | `PricingToggle.tsx` |
-| Hooks/Stores | camelCase com `use` | — | `useBillingToggle.ts` |
-| Route Handlers | — | pasta kebab-case + `route.ts` | `app/api/checkout/one-time/route.ts` |
-| Data Access Functions | camelCase, verbo+entidade | camelCase, verbo+entidade | `getProtocols()`, `createOrderFromCheckoutSession()` |
-| Database Tables | — | snake_case | `stripe_checkout_session_id` |
-| TypeScript Interfaces | PascalCase, sem prefixo `I` | PascalCase, sem prefixo `I` | `Subscription`, `SocialProof` |
+> Consistente com NFR7 (PRD): nenhuma stack de monitoramento customizada. Tudo abaixo é nativo das plataformas gerenciadas já em uso — zero serviço novo a configurar.
+
+### 17.1 Monitoring Stack
+
+- **Frontend Monitoring:** Vercel Analytics (Core Web Vitals, nativo, zero config além de habilitar no dashboard).
+- **Backend Monitoring:** Vercel Function Logs (cada Route Handler já loga erros via `apiError()`, Seção 16.2 — `requestId` permite buscar um erro específico reportado por um usuário).
+- **Error Tracking:** `console.error` estruturado dentro de `apiError()` é o único mecanismo — sem Sentry/Datadog no MVP (decisão NFR7). Buscável no Vercel Logs por `requestId` ou `code`.
+- **Performance Monitoring:** Vercel Analytics (frontend) + Vercel Function duration nos Logs (backend) — sem APM dedicado.
+- **Pagamentos:** Stripe Dashboard é a fonte de verdade para monitorar checkouts/assinaturas/falhas de cobrança — não duplicado em lugar nenhum do nosso stack (mesma decisão da Seção 10 Post-MVP do PRD: métrica do Goal 1 é lida direto do Stripe).
+
+### 17.2 Key Metrics
+
+**Frontend Metrics:**
+- Core Web Vitals (LCP, INP, CLS) via Vercel Analytics — sem budget formal (Seção 13.2), só observado.
+- Erros de JavaScript não capturados pelo error boundary (Seção 16.3) — visíveis no Vercel Analytics.
+- Taxa de conclusão do formulário de lead (Story 1.3/Seção 4.5) — proxy inicial de interesse antes mesmo do checkout.
+
+**Backend Metrics:**
+- Taxa de erro por rota (`4xx`/`5xx`) via Vercel Function Logs, filtrável por `code` do `apiError()`.
+- Latência de `/api/checkout/*` — maior parte é tempo de resposta do Stripe, não nosso código (Seção 13.2).
+- **Checkouts iniciados** (Stripe Dashboard, "Payment Links"/"Checkout Sessions" report) — é a métrica literal do Goal 1 do PRD ("≥ 50 checkouts iniciados em 4 semanas"), lida nativamente, sem instrumentação nossa.
+- Eventos de webhook recebidos vs. processados com sucesso (Stripe Dashboard → Webhooks → tentativas/falhas) — sinal de saúde do endpoint mais crítico do sistema (Seção 9.1).
