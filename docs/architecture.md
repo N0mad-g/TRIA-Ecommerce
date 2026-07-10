@@ -427,6 +427,30 @@ sequenceDiagram
 
 **Nota:** o caminho de erro é **síncrono** — o reverte-e-responde acontece dentro do mesmo request/response, sem depender de webhook ou polling. Só o caminho de sucesso é assíncrono (202 + webhook). Isso garante que `pending` nunca sobrevive a uma falha da chamada síncrona ao Stripe; só existe enquanto uma operação está genuinamente em voo no lado do Stripe.
 
+### 6.3 Assinatura Checkout (Story 2.4)
+
+```mermaid
+sequenceDiagram
+    actor U as Usuário
+    participant AP as Assinatura Page (RSC + toggle Client)
+    participant RH as Route Handler /checkout/subscription
+    participant S as Stripe
+    participant WH as Webhook Handler
+    participant DB as Supabase
+
+    U->>AP: Seleciona toggle Anual/Mensal, clica "Assinar"
+    AP->>RH: POST { protocolId, billingInterval }
+    RH->>DB: Busca stripePriceIdMonthly ou stripePriceIdAnnual
+    RH->>S: Cria Checkout Session (mode=subscription)
+    S-->>RH: checkoutUrl
+    RH-->>AP: { checkoutUrl }
+    AP->>U: Redirect para Stripe Checkout
+    U->>S: Confirma assinatura
+    S-->>U: Redirect para /confirmacao?session_id=...
+    S->>WH: webhook checkout.session.completed + customer.subscription.created
+    WH->>DB: Cria Subscription (status=active)
+```
+
 ## 7. Database Schema
 
 > Por divisão de escopo acordada com @po/@architect: o DDL concreto (CREATE TABLE, índices, políticas RLS) é entregável do **@data-engineer**. Esta seção documenta o mapeamento conceitual e as restrições que a arquitetura já define, para orientar esse trabalho — não é o schema final.
@@ -563,6 +587,52 @@ export default async function ProdutosPage({ searchParams }: { searchParams: { i
     ? Math.max(0, products.findIndex((p) => p.slug === searchParams.item))
     : 0;
   return <ProductCarousel products={products} initialIndex={initialIndex} />;
+}
+```
+
+**Protected Route Pattern:**
+
+```typescript
+// app/conta/layout.tsx
+import { redirect } from 'next/navigation';
+import { getServerSession } from '@/lib/supabase/server';
+
+export default async function ContaLayout({ children }: { children: React.ReactNode }) {
+  const session = await getServerSession();
+  if (!session) redirect('/login?redirect=/conta');
+  return <AccountShell>{children}</AccountShell>;
+}
+```
+
+### 8.4 Frontend Services Layer
+
+**API Client Setup:**
+
+```typescript
+// lib/api-client.ts — wrapper fino sobre fetch para as rotas internas (Seção 5)
+export async function createOneTimeCheckout(productId: string) {
+  const res = await fetch('/api/checkout/one-time', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ productId }),
+  });
+  if (!res.ok) throw new ApiError(await res.json());
+  return res.json() as Promise<{ checkoutUrl: string }>;
+}
+```
+
+**Service Example:**
+
+```typescript
+// lib/data/catalog.ts — repository-lite (Seção 2.5), usado pelos Server Components
+import { createServerSupabaseClient } from '@/lib/supabase/server';
+import type { Protocol } from '@/types';
+
+export async function getProtocols(): Promise<Protocol[]> {
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase.from('protocols').select('*').order('monthly_price_cents', { ascending: false });
+  if (error) throw error;
+  return data;
 }
 ```
 
@@ -778,72 +848,111 @@ tria/
 
 **Nota:** sem `apps/`/`packages/` de monorepo (decisão da Seção 2.3 — aplicação única). `supabase/migrations/` fica na raiz porque é o único "outro sistema" com estado versionado além do próprio Next.js — convenção padrão do Supabase CLI.
 
-**Protected Route Pattern:**
+## 11. Development Workflow
 
-```typescript
-// app/conta/layout.tsx
-import { redirect } from 'next/navigation';
-import { getServerSession } from '@/lib/supabase/server';
+### 11.1 Local Development Setup
 
-export default async function ContaLayout({ children }: { children: React.ReactNode }) {
-  const session = await getServerSession();
-  if (!session) redirect('/login?redirect=/conta');
-  return <AccountShell>{children}</AccountShell>;
-}
+**Prerequisites:**
+
+```bash
+node --version   # 20+ (LTS mais recente compatível com Next.js na época do scaffold)
+npm --version     # 10+
+supabase --version  # Supabase CLI, para rodar migrations locais (Seção 7.3)
+stripe --version    # Stripe CLI, para stripe trigger (Story 2.2 AC5)
 ```
 
-### 8.4 Frontend Services Layer
+**Initial Setup:**
 
-**API Client Setup:**
-
-```typescript
-// lib/api-client.ts — wrapper fino sobre fetch para as rotas internas (Seção 5)
-export async function createOneTimeCheckout(productId: string) {
-  const res = await fetch('/api/checkout/one-time', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ productId }),
-  });
-  if (!res.ok) throw new ApiError(await res.json());
-  return res.json() as Promise<{ checkoutUrl: string }>;
-}
+```bash
+git clone <repo>
+cd tria
+npm install
+cp .env.example .env.local   # preencher com chaves reais (PRD 2.4 — User Responsibilities)
+supabase link --project-ref <ref>
+supabase db push              # aplica migrations do @data-engineer
 ```
 
-**Service Example:**
+**Development Commands:**
 
-```typescript
-// lib/data/catalog.ts — repository-lite (Seção 2.5), usado pelos Server Components
-import { createServerSupabaseClient } from '@/lib/supabase/server';
-import type { Protocol } from '@/types';
+```bash
+# Start (Next.js dev server, com Turbopack)
+npm run dev
 
-export async function getProtocols(): Promise<Protocol[]> {
-  const supabase = createServerSupabaseClient();
-  const { data, error } = await supabase.from('protocols').select('*').order('monthly_price_cents', { ascending: false });
-  if (error) throw error;
-  return data;
-}
+# Rodar testes (Jest + RTL, Story 1.1 AC5)
+npm test
+npm run test:watch
+
+# Simular webhook do Stripe localmente (Story 2.2 AC5)
+stripe listen --forward-to localhost:3000/api/webhooks/stripe
+stripe trigger checkout.session.completed
 ```
 
-### 6.3 Assinatura Checkout (Story 2.4)
+### 11.2 Environment Configuration
 
-```mermaid
-sequenceDiagram
-    actor U as Usuário
-    participant AP as Assinatura Page (RSC + toggle Client)
-    participant RH as Route Handler /checkout/subscription
-    participant S as Stripe
-    participant WH as Webhook Handler
-    participant DB as Supabase
+**Required Environment Variables:**
 
-    U->>AP: Seleciona toggle Anual/Mensal, clica "Assinar"
-    AP->>RH: POST { protocolId, billingInterval }
-    RH->>DB: Busca stripePriceIdMonthly ou stripePriceIdAnnual
-    RH->>S: Cria Checkout Session (mode=subscription)
-    S-->>RH: checkoutUrl
-    RH-->>AP: { checkoutUrl }
-    AP->>U: Redirect para Stripe Checkout
-    U->>S: Confirma assinatura
-    S-->>U: Redirect para /confirmacao?session_id=...
-    S->>WH: webhook checkout.session.completed + customer.subscription.created
-    WH->>DB: Cria Subscription (status=active)
+```bash
+# .env.local — nunca commitado (ver .env.example para os nomes, PRD 2.4 / Story 1.1 AC6)
+
+# Supabase
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=          # server-only, nunca exposto ao client (Seção 9.2)
+
+# Stripe
+STRIPE_SECRET_KEY=                   # server-only
+STRIPE_WEBHOOK_SECRET=               # server-only, usado em constructEvent (Seção 9.1)
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=  # se necessário no client (Stripe.js opcional)
+
+# App
+APP_URL=http://localhost:3000        # usado em success_url/cancel_url (Seção 9.1)
 ```
+
+**Nota:** todas as variáveis `SUPABASE_SERVICE_ROLE_KEY` e `STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET` são server-only por convenção de nome (sem prefixo `NEXT_PUBLIC_`) — Next.js só expõe ao bundle do client variáveis com esse prefixo. Isso é a barreira técnica real contra vazamento de secret pro navegador, não apenas convenção documental.
+
+**Nota — webhook local usa assinatura real, não mock:** `stripe listen --forward-to localhost:3000/api/webhooks/stripe` imprime um `whsec_...` de sessão local (usado como `STRIPE_WEBHOOK_SECRET` em dev); o CLI assina o payload de verdade antes de encaminhar. `stripe trigger checkout.session.completed` dispara um evento sintético que passa pelo mesmo pipeline de assinatura — valida de fato o `constructEvent` da Seção 9.1, não pula a verificação.
+
+## 12. Deployment Architecture
+
+### 12.1 Deployment Strategy
+
+**Frontend + Backend (deploy único — monolito Next.js, Seção 2.5):**
+- **Platform:** Vercel
+- **Build Command:** `next build`
+- **Output Directory:** `.next` (gerenciado automaticamente pela integração Vercel/Next.js)
+- **CDN/Edge:** Vercel Edge Network — assets estáticos (`public/`, páginas ISR) servidos via CDN global; Route Handlers rodam como funções serverless na região mais próxima do request
+
+Não há "backend deployment" separado — Route Handlers fazem parte do mesmo build/deploy do Next.js (Seção 2.5, decisão de monolito serverless).
+
+### 12.2 CI/CD Pipeline
+
+```yaml
+# .github/workflows/test.yaml — gate de teste antes do merge (Seção 3)
+name: Test
+on:
+  pull_request:
+    branches: [main]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm test
+      - run: npm run build   # falha de build também bloqueia merge
+```
+
+Deploy em si **não** é feito por esse workflow — a integração nativa Vercel↔GitHub cuida do deploy automático a cada push (preview para PRs, produção para `main`), conforme Story 1.1 AC3. O GitHub Actions acima é só o gate de qualidade que a Vercel sozinha não garante (Vercel builda e publica mesmo se os testes falhassem, se não houvesse esse gate).
+
+### 12.3 Environments
+
+| Environment | Frontend URL | Backend URL | Purpose |
+|---|---|---|---|
+| Development | `localhost:3000` | `localhost:3000/api/*` | Desenvolvimento local |
+| Preview | `tria-git-<branch>.vercel.app` (auto por PR) | mesmo domínio `/api/*` | Revisão de PR antes do merge |
+| Production | domínio definitivo TRIA (a definir — DNS não coberto neste MVP) | mesmo domínio `/api/*` | Ambiente live |
+
+**Nota:** ambiente de "Staging" separado não existe — Preview deployments da Vercel (um por PR, efêmero) cumprem esse papel sem precisar de infraestrutura dedicada, consistente com NFR7 (sem infra customizada).
