@@ -720,6 +720,64 @@ export async function middleware(req: NextRequest) {
 export const config = { matcher: ['/conta/:path*'] };
 ```
 
+## 10. Unified Project Structure
+
+```text
+tria/
+├── .github/
+│   └── workflows/
+│       └── test.yaml              # Gate de Jest antes do merge (Seção 3 — CI/CD)
+├── app/
+│   ├── (marketing)/                # Grupo de rotas ISR (Seção 2.5)
+│   │   ├── page.tsx                  # Home
+│   │   ├── about/page.tsx
+│   │   ├── produtos/page.tsx         # ?item= deep-link (Seção 8.3)
+│   │   └── assinatura/page.tsx       # ?item= deep-link (Seção 8.3)
+│   ├── confirmacao/page.tsx        # Dynamic (Seção 5.1)
+│   ├── conta/                      # Dynamic, protegido (Seção 9.3)
+│   │   ├── layout.tsx
+│   │   ├── page.tsx
+│   │   ├── pedidos/page.tsx
+│   │   ├── assinatura/page.tsx
+│   │   └── config/page.tsx
+│   ├── login/page.tsx
+│   └── api/
+│       ├── checkout/{one-time,subscription}/route.ts
+│       ├── webhooks/stripe/route.ts
+│       └── account/subscription/route.ts
+├── components/
+│   ├── ui/
+│   ├── hero/
+│   ├── product/
+│   ├── protocol/
+│   └── account/
+├── lib/
+│   ├── data/                       # Repository-lite: catalog.ts, orders.ts, subscriptions.ts
+│   ├── stripe/                     # client.ts, webhook helpers
+│   ├── supabase/                   # server.ts, middleware.ts, service-role.ts
+│   ├── stores/                     # billing-toggle.ts, subscription-action.ts
+│   └── errors.ts                   # apiError() padrão (Seção 13)
+├── types/
+│   └── index.ts                    # Product, Protocol, Order, Subscription (Seção 4)
+├── supabase/
+│   └── migrations/                 # DDL do @data-engineer (Seção 7), incrementais por story
+├── tests/
+│   └── (co-localizados com Jest — ver Seção 11)
+├── public/
+│   └── produtos/                   # 5 fotos de produto (User Responsibility, PRD 2.4)
+├── middleware.ts
+├── .env.example
+├── .env.local                      # Não commitado — chaves Stripe/Supabase (PRD 2.4)
+├── next.config.js
+├── tailwind.config.ts
+├── tsconfig.json
+├── jest.config.js
+├── package.json
+└── README.md
+```
+
+**Nota:** sem `apps/`/`packages/` de monorepo (decisão da Seção 2.3 — aplicação única). `supabase/migrations/` fica na raiz porque é o único "outro sistema" com estado versionado além do próprio Next.js — convenção padrão do Supabase CLI.
+
 **Protected Route Pattern:**
 
 ```typescript
