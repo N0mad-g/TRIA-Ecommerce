@@ -58,6 +58,7 @@ _(Trazido diretamente da seção 13 do Project Brief — "Restrições e Não-Es
 - Não usar a palavra "Kit" em nenhum texto de interface — sempre "Protocolo".
 - Não criar categoria de produto "Styling" — Pomada Fix entra em "Cabelo".
 - Não exigir login para compra avulsa.
+- Não implementar self-service de exclusão de dados (LGPD) — MVP usa processo manual via DPO (Seção 2.5); self-service fica para v2.
 
 ### 2.4 User Responsibilities
 
@@ -66,6 +67,17 @@ _(Tarefas humanas que precisam existir antes das stories que dependem delas — 
 - **Conta Stripe:** criar conta, configurar modo live/test, e fornecer API keys (publishable + secret + webhook signing secret) antes da Story 2.1.
 - **Conta Supabase:** criar projeto e fornecer URL + chaves (anon/service role) antes da Story 1.2.
 - **Fotos dos 5 produtos:** já existem — serão fornecidas via pasta `assets/produtos/` antes da Story 1.2.
+
+### 2.5 LGPD / Privacidade de Dados
+
+_(Decisões de negócio confirmadas pelo fundador — não inventadas pelo agente)_
+
+- **Encarregado de Dados (DPO):** Gustavo (fundador) — nome e e-mail devem constar na política de privacidade do site e ser o destinatário de solicitações de titular (Art. 18 LGPD).
+- **Retenção — `leads` (captura do hero, FR1):** 12 meses de inatividade a partir da criação, com exclusão automática após esse prazo (Story 1.7).
+- **Consentimento — `leads`:** checkbox de consentimento explícito, **não pré-marcado**, obrigatório para submeter o formulário (Story 1.3 AC7). Sem base legal de execução de contrato para esse dado — depende de consentimento.
+- **Retenção — `orders`/`subscriptions`:** 5 anos por obrigação fiscal, mantidos mesmo após cancelamento de assinatura ou solicitação de exclusão de conta.
+- **Exclusão sob demanda:** **anonimização**, não exclusão física — nome/e-mail/WhatsApp/telefone tornam-se `[removido]`; `stripe_customer_id` é mantido apenas como referência fiscal. Processo **manual** no MVP (usuário escreve para o e-mail do DPO; dev/DPO executa a anonimização); self-service de exclusão fica fora do escopo do MVP (ver Seção 2.3, Out of Scope).
+- **Cookies/Analytics:** Vercel Analytics em modo agregado, sem PII — sem banner de consentimento de cookies no MVP. Se um pixel de remarketing (Meta/Google Ads) entrar em versão futura, banner de cookies passa a ser obrigatório — fora do escopo atual.
 
 ## 3. User Interface Design Goals
 
@@ -172,6 +184,7 @@ Como visitante, quero ver a Home com hero carrossel, seção de marca, benefíci
 4: Vitrine de Produtos avulsos exibe amostra linkando para `/produtos`.
 5: Layout responsivo mobile-first, validado em viewport mobile e desktop.
 6: Formulário de captura de lead (slide 3 do hero) valida e-mail ou WhatsApp no client, envia para `POST /api/leads` (endpoint público, ver Architecture Seção 5) e persiste no banco — sem isso, o dado do FR1 é coletado e perdido. Exibe confirmação de sucesso e mensagem de erro em caso de falha de validação/rede.
+7: Formulário exibe checkbox de consentimento LGPD (texto: aceite de uso do contato para comunicação da TRIA), **não pré-marcado** — botão de envio permanece desabilitado até o checkbox ser marcado (Seção 2.5).
 
 ### Story 1.4 About Page
 
@@ -207,6 +220,17 @@ Como visitante, quero ver os 3 planos de protocolo lado a lado com toggle Anual/
 3: "Ritual de Autoridade" tem destaque visual (borda + badge "Mais Popular").
 4: Nenhuma ação de assinatura funcional ainda (ação fica para o Epic 2) — botão visível porém desabilitado/placeholder.
 5: Responsivo mobile-first.
+
+### Story 1.7 LGPD — Purga Automática de Leads Inativos
+
+Como sistema, quero purgar automaticamente leads com mais de 12 meses de criação, para cumprir a política de retenção definida (Seção 2.5).
+
+#### Acceptance Criteria
+
+1: Rota `/api/cron/purge-leads` apaga registros de `leads` com `createdAt` há mais de 12 meses.
+2: Rota protegida por secret de cron (header validado) — não é endpoint público, mesmo sem sessão de usuário.
+3: Job agendado via Vercel Cron Jobs (nativo, mensal) — sem infraestrutura adicional (NFR7).
+4: Execução registrada em log com contagem de registros apagados, para auditoria (Seção 2.5).
 
 ## 7. Epic 2 Purchase Flow
 
