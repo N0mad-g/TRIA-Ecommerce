@@ -82,6 +82,8 @@ graph TB
 
 > Esta é a seleção DEFINITIVA de tecnologia para o projeto inteiro — todo desenvolvimento deve usar exatamente estas escolhas.
 
+> **Trade-off declarado (achado do architect-checklist, Categoria 3.1):** boa prática de arquitetura pede versões travadas, não faixas — mas Next.js aqui é deliberadamente "latest stable at scaffold time" (Seção 1.1), decisão explícita para não deixar o documento desatualizado se uma versão nova sair antes do dev kickoff. É uma exceção consciente e única a essa regra, não uma omissão geral de versionamento; as demais tecnologias da tabela seguem a mesma lógica de "última estável" pelo mesmo motivo, e ficam travadas de fato no `package-lock.json` gerado no scaffold (Story 1.1) — a partir daí, sim, viram versões fixas para o resto do projeto.
+
 | Category | Technology | Version | Purpose | Rationale |
 |---|---|---|---|---|
 | Frontend Language | TypeScript | latest stable (5.x) | Tipagem estática em toda a aplicação | Reduz bugs de integração entre camadas; padrão do preset AIOX |
@@ -95,7 +97,7 @@ graph TB
 | Cache | Nenhum | — | — | Escala do MVP não justifica camada de cache; Next.js já faz cache de RSC/fetch nativo |
 | File Storage | Next.js `public/` (assets estáticos) | — | 5 fotos de produto, imagens institucionais | Catálogo é fixo/seedado (não upload dinâmico de usuário) — Supabase Storage seria over-engineering neste estágio |
 | Authentication | Supabase Auth | latest (gerenciado) | Login/signup da Área do Cliente | Decisão do PRD (Story 3.1); e-mail/senha + magic link |
-| Frontend Testing | Jest + React Testing Library | latest stable | Testes de componente e lógica de preço/toggle | Decisão do PRD (Story 1.1 AC5, fix do @po) |
+| Frontend Testing | Jest + React Testing Library + jest-axe | latest stable | Testes de componente, lógica de preço/toggle, e violações de acessibilidade | Decisão do PRD (Story 1.1 AC5, fix do @po); `jest-axe` adicionado no architect-checklist (Categoria 10.2) para operacionalizar WCAG AA (PRD 3.4) |
 | Backend Testing | Jest + Stripe CLI (`stripe trigger`) | latest stable | Testes de Route Handlers e simulação de webhook | Decisão do PRD (Story 2.2 AC5) |
 | E2E Testing | Nenhum no MVP | — | — | Fora de escopo por decisão explícita do PRD (Seção 4.3) |
 | Build Tool | Next.js CLI | (mesma versão do Next.js) | Build/dev/start | Nativo do framework, sem tooling adicional |
@@ -682,6 +684,33 @@ export async function getProtocols(): Promise<Protocol[]> {
 }
 ```
 
+### 8.5 Accessibility Implementation
+
+> Achado do architect-checklist (Categoria 10): WCAG AA foi requisito **confirmado explicitamente** na elicitação do PRD (Seção 3.4) — não é sugestão do Architect, é requisito de produto já aprovado. Esta subseção operacionaliza o que estava só declarado.
+
+**Semantic HTML e ARIA por componente crítico:**
+
+| Componente | Padrão obrigatório |
+|---|---|
+| Hero Carousel (Story 1.3) | `<section aria-roledescription="carousel">`, dots como `<button aria-label="Ir para slide N" aria-current={isActive}>`, pausa automática ao receber foco de teclado |
+| Product Carousel (Story 1.5) | Setas como `<button aria-label="Produto anterior/próximo">`, produto atual anunciado via `aria-live="polite"` numa região textual (nome do produto muda, screen reader precisa saber) |
+| Pricing Toggle (Story 1.6, exemplo já em 8.1) | `role="tablist"`/`role="tab"`/`aria-selected` — já mostrado, é o modelo pros demais |
+| Sidebar `/conta` (Story 3.2) | `<nav aria-label="Menu da conta">`, item ativo com `aria-current="page"` |
+| Estado "processando" (Story 3.4, Seção 6.2) | Região `aria-live="polite"` anunciando mudança de estado (processando → sucesso/erro) — sem isso, screen reader não percebe a UI mudando sem navegação de página |
+| Toast de erro (Seção 16.3) | `role="alert"` (já usado no `app/error.tsx`, Seção 16.3 — estender para toasts pontuais de formulário/ação) |
+
+**Keyboard Navigation:**
+- Todo elemento interativo (botão, link, toggle, seta de carrossel) alcançável via `Tab`, ativável via `Enter`/`Space` — nenhum `onClick` em `<div>`/`<span>` sem `role` e `tabIndex` equivalente; usar elementos semânticos (`<button>`, `<a>`) por padrão em vez de recriar comportamento de teclado manualmente.
+- Carrosséis (hero, produtos) navegáveis por seta do teclado (`←`/`→`) quando o carrossel tem foco, além do clique nos controles.
+
+**Focus Management:**
+- Ao abrir um estado modal/overlay (se houver no MVP — nenhum confirmado ainda, mas a regra vale se surgir), foco move para o primeiro elemento interativo do overlay e retorna ao elemento que o abriu ao fechar.
+- Após navegação client-side (Client Components com `router.push`), foco move para o `<h1>` da nova view — App Router não faz isso automaticamente, precisa de tratamento explícito (`useEffect` + `ref.current.focus()`).
+
+**Testing (fecha a Categoria 10.2 do checklist):**
+- `jest-axe` integrado aos testes de componente (Seção 14) — cada componente crítico da tabela acima ganha uma asserção `expect(await axe(container)).toHaveNoViolations()`.
+- Testado manualmente com um screen reader (NVDA ou VoiceOver) nos 3 fluxos críticos (compra avulsa, assinatura, trocar protocolo) antes do lançamento — não substituível por teste automatizado sozinho.
+
 ## 9. Backend Architecture
 
 ### 9.1 Service Architecture (Serverless)
@@ -979,6 +1008,8 @@ APP_URL=http://localhost:3000        # usado em success_url/cancel_url (Seção 
 
 Não há "backend deployment" separado — Route Handlers fazem parte do mesmo build/deploy do Next.js (Seção 2.5, decisão de monolito serverless).
 
+**Rollback (achado do architect-checklist, Categoria 5.4):** procedimento é o **rollback instantâneo nativo da Vercel** — cada deploy de produção fica disponível no dashboard, e reverter para o deploy anterior é uma ação de um clique (ou `vercel rollback` via CLI), sem rebuild. Nenhuma infraestrutura adicional necessária (consistente com NFR7). Migration (Seção 12.4) é a única parte não coberta por esse rollback automático — se uma migration já rodou no build revertido, reverter o código não reverte o schema; por isso a regra de "migration no mesmo commit" existe, para minimizar essa janela.
+
 ### 12.2 CI/CD Pipeline
 
 ```yaml
@@ -1050,8 +1081,13 @@ Deploy em si **não** é feito por esse workflow — a integração nativa Verce
 
 **Authentication Security:**
 - **Token Storage:** cookie `httpOnly` gerenciado pelo Supabase Auth SSR — nunca acessível via JavaScript do client.
-- **Session Management:** expiração/refresh automáticos via Supabase Auth (Seção 9.3); middleware revalida a cada request a `/conta/*`.
+- **Session Management:** expiração/refresh automáticos via Supabase Auth (Seção 9.3); middleware revalida a cada request a `/conta/*` **e** `/api/account/*` (matcher completo na Seção 9.3 — não só páginas).
 - **Password Policy:** padrão do Supabase Auth (mínimo 8 caracteres) — sem política customizada adicional no MVP; magic link como alternativa reduz a superfície de senha fraca.
+
+**Data Security (achado do architect-checklist, Categoria 6.2):**
+- **Encryption at rest:** nativo do Supabase (Postgres com criptografia de disco gerenciada) — nenhuma configuração adicional necessária, mas nunca tinha sido declarado explicitamente neste documento.
+- **Encryption in transit:** TLS obrigatório em todas as conexões — Vercel↔Supabase, Vercel↔Stripe e client↔Vercel são HTTPS por padrão nas 3 plataformas gerenciadas; nenhuma delas permite downgrade para HTTP.
+- **Retenção/exclusão de dados (LGPD):** **não resolvido nesta seção** — a escolha da região `sa-east-1` (Seção 2.2) citou LGPD como motivação, mas a arquitetura ainda não define política de retenção/exclusão para `leads`/`orders`/`subscriptions`. Tratado à parte, como decisão de negócio antes do go-live do Epic 2 (ver perguntas separadas, fora deste documento).
 
 ### 13.2 Performance Optimization
 
@@ -1117,6 +1153,8 @@ app/api/
 lib/data/
 ├── orders.ts
 └── orders.test.ts                    # idempotência: insert duplicado não lança (Seção 9.2)
+supabase/
+└── rls.test.ts                        # RLS: usuário A não lê pedido/assinatura de usuário B (achado do architect-checklist, Categoria 7.2)
 ```
 
 **E2E Tests:** N/A — fora de escopo do MVP (PRD Seção 4.3).
@@ -1134,6 +1172,19 @@ test('alterna preço exibido ao clicar em Anual', () => {
   render(<PricingToggle protocol={ritualDeAutoridadeMock} />);
   fireEvent.click(screen.getByRole('tab', { name: 'Anual' }));
   expect(screen.getByText(/R\$\s*2\.490/)).toBeInTheDocument(); // preço anual, não mensal
+});
+```
+
+**Frontend Component Test — Acessibilidade (achado do architect-checklist, Categoria 10.2):**
+
+```typescript
+// components/protocol/PricingToggle.test.tsx (mesmo arquivo, teste adicional)
+import { axe, toHaveNoViolations } from 'jest-axe';
+expect.extend(toHaveNoViolations);
+
+test('não tem violação de acessibilidade (WCAG AA, PRD Seção 3.4)', async () => {
+  const { container } = render(<PricingToggle protocol={ritualDeAutoridadeMock} />);
+  expect(await axe(container)).toHaveNoViolations();
 });
 ```
 
@@ -1200,6 +1251,42 @@ test('mantém status pending apenas enquanto a chamada ao Stripe está genuiname
 });
 ```
 
+**Backend Test — Verificação de RLS (achado do architect-checklist, Categoria 7.2):**
+
+```typescript
+// supabase/rls.test.ts — usa client com anon key + JWT de teste, não service role
+import { createClientForUser } from './test-helpers';
+
+test('usuário A não consegue ler pedidos de usuário B via RLS', async () => {
+  await seedOrder({ userId: 'user-a', id: 'order-1' });
+
+  const clientAsUserB = createClientForUser('user-b');
+  const { data, error } = await clientAsUserB.from('orders').select('*').eq('id', 'order-1');
+
+  expect(data).toEqual([]); // RLS bloqueia — não é um 403, é uma lista vazia
+  expect(error).toBeNull(); // RLS não é "erro", é filtro silencioso — importante o teste checar isso, não status code
+});
+
+test('usuário A não consegue ler assinatura de usuário B via RLS', async () => {
+  await seedSubscription({ userId: 'user-a', id: 'sub-1' });
+
+  const clientAsUserB = createClientForUser('user-b');
+  const { data } = await clientAsUserB.from('subscriptions').select('*').eq('id', 'sub-1');
+
+  expect(data).toEqual([]);
+});
+
+test('catálogo (products/protocols) é legível por qualquer usuário, mesmo anônimo', async () => {
+  const anonClient = createClientForUser(null); // sem sessão — Seção 7.2: catálogo é público de propósito
+  const { data, error } = await anonClient.from('products').select('*');
+
+  expect(error).toBeNull();
+  expect(data!.length).toBeGreaterThan(0);
+});
+```
+
+**Nota:** o primeiro teste é a verificação mais importante desta suíte inteira — RLS é o único controle técnico que impede um usuário logado de ler dados de outro usuário (Seção 7.2), e sem esse teste a garantia ficava só na documentação, nunca executada.
+
 **E2E Test:** N/A — fora de escopo do MVP.
 
 ## 15. Coding Standards
@@ -1216,6 +1303,7 @@ test('mantém status pending apenas enquanto a chamada ao Stripe está genuiname
 - **Migrations no mesmo commit do código que depende delas:** nunca aplicar migration manualmente fora do fluxo de deploy (Seção 12.4) — o arquivo SQL entra no mesmo PR que o código.
 - **Money sempre em centavos (inteiro):** `priceCents`/`amountCents`, nunca float — evita erro de arredondamento em valores monetários (Seção 4).
 - **Qualquer mudança em `/api/account/subscription` mantém os 2 testes de rollback/sucesso passando:** os testes da Seção 14.3 (`route.test.ts` de troca de protocolo) são a trava de regressão da regra 2 acima — se um refactor exigir alterá-los, o novo comportamento precisa continuar garantindo "nunca `pending` sem saída" e "sucesso real do Stripe é o único caminho que legitimamente fica `pending`". Editar os testes para fazer passar sem essa garantia não conta como fix.
+- **Elementos interativos sempre semânticos, nunca `<div onClick>`:** `<button>`/`<a>` por padrão para qualquer coisa clicável — WCAG AA (PRD 3.4) é requisito confirmado, não aspiracional; um componente novo sem foco de teclado funcional é bug, não polimento posterior (Seção 8.5).
 
 ### 15.2 Naming Conventions
 
