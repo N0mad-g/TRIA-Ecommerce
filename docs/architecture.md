@@ -1485,3 +1485,40 @@ Todo Route Handler segue o padrão: `try { ... } catch (err) { return apiError(.
 - Latência de `/api/checkout/*` — maior parte é tempo de resposta do Stripe, não nosso código (Seção 13.2).
 - **Checkouts iniciados** (Stripe Dashboard, "Payment Links"/"Checkout Sessions" report) — é a métrica literal do Goal 1 do PRD ("≥ 50 checkouts iniciados em 4 semanas"), lida nativamente, sem instrumentação nossa.
 - Eventos de webhook recebidos vs. processados com sucesso (Stripe Dashboard → Webhooks → tentativas/falhas) — sinal de saúde do endpoint mais crítico do sistema (Seção 9.1).
+
+## 18. Checklist Results Report
+
+### Executive Summary
+
+- **Prontidão final:** **High** — todos os achados do `architect-checklist` foram resolvidos ou formalmente rastreados nesta rodada.
+- **Tipo:** Full-stack com frontend, avaliado via documento único (sem `frontend-architecture.md` separado, por escolha de template).
+- **Decisão final:** **READY FOR DEV** — handoff pro `@data-engineer` (schema DDL, Seção 7) e depois `@dev`/`@sm` (stories).
+
+### Section Analysis (pós-fixes)
+
+| Seção | Status inicial | Status final | Resolução |
+|---|---|---|---|
+| 1. Requirements Alignment | PASS/PARTIAL | PASS/PARTIAL | Edge cases fora do fluxo de rollback continuam rasos — aceito, não bloqueante |
+| 2. Architecture Fundamentals | PASS | PASS | — |
+| 3. Technical Stack & Decisions | PARTIAL | PASS | Trade-off de versionamento declarado explicitamente; backup/recovery do Supabase é nativo (não exigia ação) |
+| 4. Frontend Design & Implementation | PARTIAL | PARTIAL | Otimização de imagem/code splitting/lazy loading continuam sem detalhamento formal — aceito para o tamanho do MVP |
+| 5. Resilience & Operational Readiness | PARTIAL | PASS | Rollback de deploy documentado (Vercel nativo) |
+| 6. Security & Compliance | FAIL | PASS | Encryption declarado; LGPD formalizado por completo (PRD 2.5 + propagado em toda a arquitetura) |
+| 7. Implementation Guidance | PARTIAL | PASS | Teste de RLS adicionado (Seção 14.3) |
+| 8. Dependency & Integration Mgmt | PARTIAL | PARTIAL | Mesma tensão de versionamento (aceita); sem fallback para outage de Stripe/Supabase — risco aceito no MVP |
+| 9. AI Agent Implementation Suitability | PASS forte | PASS forte | — |
+| 10. Accessibility Implementation | FAIL | PASS | Seção 8.5 nova (ARIA por componente, keyboard nav, focus management), `jest-axe` na stack + teste, regra 9 em Coding Standards |
+
+### Riscos Remanescentes (aceitos, não bloqueantes)
+
+1. Edge cases de falha fora do fluxo de troca de protocolo (ex: Stripe indisponível durante criação de Checkout Session) tratados só pelo `apiError()` genérico, sem retry/circuit breaker — aceitável na escala do MVP.
+2. Sem fallback formal para outage de Stripe/Supabase — ambos são dependências críticas sem plano B; risco aceito dado o estágio de validação do projeto (NFR7).
+3. Otimização de performance de frontend (imagem, code splitting, re-render) não detalhada além do padrão RSC-por-default — pode ser refinada durante implementação sem mudar arquitetura.
+
+### Itens Fechados Nesta Sessão (para rastreabilidade)
+
+Rollback de deploy (12.1) · Encryption at rest/in transit (13.1) · Teste de RLS (14.3) · Trade-off de versionamento declarado (3) · Acessibilidade operacionalizada (8.5, 14.3, 15.1) · LGPD formalizado (PRD 2.5, arquitetura 4.5/5/7/9.1/11.2/13.1) · 2 bugs estruturais de reordenação de seção corrigidos (Story 6.3, 8.4, 15.2 — conteúdo empurrado pro fim do arquivo por edição mal ancorada).
+
+### Final Decision
+
+**READY FOR DEV** — PRD (Morgan, validado por Pax) e Architecture (Aria) completos, coerentes entre si, e com todo achado de revisão resolvido ou explicitamente aceito como risco de MVP. Próximo passo: `@data-engineer` para o DDL concreto (Seção 7.3), depois `@sm` para quebrar as 16 stories em execução.
