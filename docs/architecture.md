@@ -526,12 +526,15 @@ sequenceDiagram
 |---|---|---|
 | Product | `products` | Seed único, sem admin (PRD 2.4) |
 | Protocol | `protocols` | idem |
-| — (junção) | `protocol_products` | N:N para `Protocol.productIds` |
-| — (junção) | `product_related_protocols` | N:N para `Product.relatedProtocolIds` (corrigido na Seção 4.1 — produto pode estar em múltiplos protocolos) |
+| — (junção) | `protocol_products` | N:N única para `Protocol.productIds` **e** `Product.relatedProtocolIds` — mesmo relacionamento visto dos dois lados, não duas tabelas (ver nota abaixo) |
 | Order | `orders` | Escrito exclusivamente pelo webhook (Story 2.2) |
 | Subscription | `subscriptions` | Escrito pelo webhook (sucesso) ou revertido sincronamente pelo Route Handler (falha — Seção 6.2) |
 | Lead | `leads` | Escrito por `/api/leads` (Seção 4.5/5), endpoint público sem auth; purgado por `/api/cron/purge-leads` após 12 meses (Story 1.7, LGPD) |
 | — | `auth.users` (Supabase Auth nativo) | Não é tabela custom — gerenciada pelo Supabase Auth |
+
+**Total: 6 tabelas custom** (`products`, `protocols`, `protocol_products`, `orders`, `subscriptions`, `leads`) + `auth.users` nativo.
+
+> **Correção (achado do @data-engineer antes do DDL):** a versão anterior desta seção listava `protocol_products` e `product_related_protocols` como duas tabelas de junção separadas. Estava errado — `Protocol.productIds` ("produtos que compõem o protocolo") e `Product.relatedProtocolIds` ("protocolos que incluem este produto", Seção 4.1) são o **mesmo relacionamento N:N**, só consultado em direções opostas. Uma única tabela `protocol_products (protocol_id, product_id)` resolve as duas: `WHERE protocol_id = X` dá o array de produtos do protocolo; `WHERE product_id = Y` dá o array de protocolos do produto (usado na regra de FR5, Seção 4.1). Duas tabelas armazenando o mesmo par duplicaria o dado e criaria risco de inconsistência (a Story 1.2 teria que popular as duas em sincronia, sem garantia de que ficassem coerentes).
 
 ### 7.2 Restrições que a arquitetura já define (para o @data-engineer respeitar)
 
