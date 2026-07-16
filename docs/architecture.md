@@ -104,6 +104,7 @@ graph TB
 | Bundler | Turbopack (via Next.js) | (mesma versão do Next.js) | Bundling de dev/produção | Padrão do Next.js 16+, mais rápido que Webpack |
 | IaC Tool | Nenhum | — | — | Infra 100% gerenciada (Vercel/Supabase/Stripe) — decisão NFR7 do PRD |
 | CI/CD | Vercel Git Integration + GitHub Actions (gate de teste) | — | Deploy automático + rodar Jest antes do merge em `main` | Vercel cobre deploy; Actions mínimo garante que testes rodem antes de ir pra produção (não coberto só pelo deploy da Vercel) |
+| Scheduled Jobs | Vercel Cron Jobs | nativo | Purga mensal de leads inativos (Story 1.7, LGPD) | Nativo da Vercel, zero infraestrutura adicional — consistente com NFR7 |
 | Monitoring | Vercel Analytics + Vercel Logs | nativo | Observabilidade básica de frontend/funções | Decisão NFR7 do PRD — sem stack de monitoramento customizada |
 | Logging | Vercel Function Logs + Supabase Logs + Stripe Dashboard | nativo | Debug de erros em produção | Nativo de cada plataforma gerenciada, sem agregador externo |
 | CSS Framework | Tailwind CSS | latest stable (4.x) | Estilização de toda a aplicação | Decisão do PRD |
@@ -265,6 +266,7 @@ interface Subscription {
 - contactType: 'email' | 'whatsapp'
 - utmSource: string | null - Origem (ex: `instagram`), relevante porque o tráfego é orgânico de posts específicos (PRD Goal 1)
 - utmCampaign: string | null - Referência ao post/campanha de origem, se presente na URL
+- consentGiven: boolean - Checkbox de consentimento LGPD marcado no momento da captura (PRD Seção 2.5/Story 1.3 AC7); sempre `true` quando o registro existe (formulário não submete sem marcar), armazenado para prova de consentimento em auditoria
 - createdAt: string (ISO date)
 
 ```typescript
@@ -274,11 +276,14 @@ interface Lead {
   contactType: 'email' | 'whatsapp';
   utmSource: string | null;
   utmCampaign: string | null;
+  consentGiven: boolean;
   createdAt: string;
 }
 ```
 
 **Relationships:** Nenhuma — captura isolada, sem vínculo com `User`/`Order`/`Subscription` no MVP (o mesmo e-mail pode aparecer como Lead e depois como Order sem join automático; correlação manual se necessário, fora do escopo do MVP).
+
+**Retenção (LGPD, PRD Seção 2.5):** 12 meses desde `createdAt`, exclusão física automática (Story 1.7) — ver Seção 5 `/api/cron/purge-leads` e Seção 13.1.
 
 ## 5. API Specification
 
@@ -362,6 +367,15 @@ paths:
         '400': { description: contact/contactType inválido }
         '429': { description: Rate limit excedido (Vercel Firewall) }
 
+  /api/cron/purge-leads:
+    get:
+      summary: Purga leads com mais de 12 meses (Story 1.7, LGPD retenção — PRD Seção 2.5)
+      security:
+        - cronSecret: []
+      responses:
+        '200': { description: "Execução concluída, contagem de registros apagados no corpo/log" }
+        '401': { description: Secret de cron ausente/inválido }
+
   /api/webhooks/stripe:
     post:
       summary: Recebe eventos do Stripe (Story 2.2) — checkout.session.completed, customer.subscription.updated/deleted, invoice.paid
@@ -400,6 +414,10 @@ components:
       type: apiKey
       in: header
       name: Stripe-Signature
+    cronSecret:
+      type: apiKey
+      in: header
+      name: Authorization
 ```
 
 **Nota:** `/api/account/subscription` retorna `202 Accepted` (não `200`), reforçando na própria API que a ação é assíncrona — o client não deve tratar a resposta como confirmação de sucesso, só como "solicitação aceita". Reforça o padrão webhook-driven da Seção 2.
@@ -512,7 +530,7 @@ sequenceDiagram
 | — (junção) | `product_related_protocols` | N:N para `Product.relatedProtocolIds` (corrigido na Seção 4.1 — produto pode estar em múltiplos protocolos) |
 | Order | `orders` | Escrito exclusivamente pelo webhook (Story 2.2) |
 | Subscription | `subscriptions` | Escrito pelo webhook (sucesso) ou revertido sincronamente pelo Route Handler (falha — Seção 6.2) |
-| Lead | `leads` | Escrito por `/api/leads` (Seção 4.5/5), endpoint público sem auth |
+| Lead | `leads` | Escrito por `/api/leads` (Seção 4.5/5), endpoint público sem auth; purgado por `/api/cron/purge-leads` após 12 meses (Story 1.7, LGPD) |
 | — | `auth.users` (Supabase Auth nativo) | Não é tabela custom — gerenciada pelo Supabase Auth |
 
 ### 7.2 Restrições que a arquitetura já define (para o @data-engineer respeitar)
@@ -523,6 +541,8 @@ sequenceDiagram
 - **RLS:** `orders` e `subscriptions` legíveis apenas pelo próprio `user_id` (via `auth.uid()`); o webhook grava via service role, bypassando RLS.
 - `products` e `protocols` são publicamente legíveis (SELECT) sem RLS restritivo — catálogo não tem dado sensível.
 - Escrita em `products`/`protocols` restrita a service role — sem admin panel no MVP, só seed/migration (Story 1.2) escreve.
+- **LGPD (PRD Seção 2.5):** FK de `orders.user_id`/`subscriptions.user_id` para `auth.users` deve usar `ON DELETE SET NULL` (não `CASCADE`) — se um usuário for removido do Supabase Auth (anonimização), o pedido/assinatura precisa sobreviver por 5 anos de obrigação fiscal, só perdendo o vínculo com a pessoa. `orders.customer_email` sem constraint de NOT NULL após anonimização (vira `[removido]`).
+- `leads.created_at` deve ter índice — é o filtro do job de purga mensal (Story 1.7).
 
 ### 7.3 Handoff
 
@@ -556,7 +576,9 @@ app/
     │   ├── one-time/route.ts
     │   └── subscription/route.ts
     ├── webhooks/stripe/route.ts
-    └── account/subscription/route.ts
+    ├── account/subscription/route.ts
+    ├── leads/route.ts               # Story 1.3 AC6/AC7
+    └── cron/purge-leads/route.ts    # Story 1.7, LGPD
 
 components/
 ├── ui/                          # Componentes genéricos (Button, Card, Badge)
@@ -792,6 +814,33 @@ export async function POST(req: NextRequest) {
 }
 ```
 
+**Function Template — Cron Job de Purga de Leads (Story 1.7, LGPD):**
+
+```typescript
+// app/api/cron/purge-leads/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { purgeInactiveLeads } from '@/lib/data/leads';
+
+export async function GET(req: NextRequest) {
+  // Vercel Cron injeta este header automaticamente — não é a mesma coisa que sessão de usuário
+  const authHeader = req.headers.get('authorization');
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return NextResponse.json({ error: { code: 'UNAUTHORIZED' } }, { status: 401 });
+  }
+
+  const deletedCount = await purgeInactiveLeads(); // leads com createdAt > 12 meses
+  console.log(`[purge-leads] ${deletedCount} registros apagados`); // auditoria via Vercel Logs (PRD 2.5)
+  return NextResponse.json({ deletedCount });
+}
+```
+
+```json
+// vercel.json — agenda o cron mensal (dia 1, meia-noite UTC)
+{
+  "crons": [{ "path": "/api/cron/purge-leads", "schedule": "0 0 1 * *" }]
+}
+```
+
 ### 9.2 Database Architecture
 
 **Schema Design:** ver Seção 7 — DDL concreto é entregável do `@data-engineer`.
@@ -898,7 +947,9 @@ tria/
 │   └── api/
 │       ├── checkout/{one-time,subscription}/route.ts
 │       ├── webhooks/stripe/route.ts
-│       └── account/subscription/route.ts
+│       ├── account/subscription/route.ts
+│       ├── leads/route.ts            # Story 1.3 AC6/AC7
+│       └── cron/purge-leads/route.ts # Story 1.7, LGPD (Seção 2.5)
 ├── components/
 │   ├── ui/
 │   ├── hero/
@@ -906,7 +957,7 @@ tria/
 │   ├── protocol/
 │   └── account/
 ├── lib/
-│   ├── data/                       # Repository-lite: catalog.ts, orders.ts, subscriptions.ts
+│   ├── data/                       # Repository-lite: catalog.ts, orders.ts, subscriptions.ts, leads.ts
 │   ├── stripe/                     # client.ts, webhook helpers
 │   ├── supabase/                   # server.ts, middleware.ts, service-role.ts
 │   ├── stores/                     # billing-toggle.ts, subscription-action.ts
@@ -920,6 +971,7 @@ tria/
 ├── public/
 │   └── produtos/                   # 5 fotos de produto (User Responsibility, PRD 2.4)
 ├── middleware.ts
+├── vercel.json                     # Agendamento do Cron Job (Story 1.7, Seção 9.1)
 ├── .env.example
 ├── .env.local                      # Não commitado — chaves Stripe/Supabase (PRD 2.4)
 ├── next.config.js
@@ -990,6 +1042,7 @@ NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=  # se necessário no client (Stripe.js opcio
 
 # App
 APP_URL=http://localhost:3000        # usado em success_url/cancel_url (Seção 9.1)
+CRON_SECRET=                         # server-only, valida chamadas do Vercel Cron (Story 1.7)
 ```
 
 **Nota:** todas as variáveis `SUPABASE_SERVICE_ROLE_KEY` e `STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET` são server-only por convenção de nome (sem prefixo `NEXT_PUBLIC_`) — Next.js só expõe ao bundle do client variáveis com esse prefixo. Isso é a barreira técnica real contra vazamento de secret pro navegador, não apenas convenção documental.
@@ -1087,7 +1140,11 @@ Deploy em si **não** é feito por esse workflow — a integração nativa Verce
 **Data Security (achado do architect-checklist, Categoria 6.2):**
 - **Encryption at rest:** nativo do Supabase (Postgres com criptografia de disco gerenciada) — nenhuma configuração adicional necessária, mas nunca tinha sido declarado explicitamente neste documento.
 - **Encryption in transit:** TLS obrigatório em todas as conexões — Vercel↔Supabase, Vercel↔Stripe e client↔Vercel são HTTPS por padrão nas 3 plataformas gerenciadas; nenhuma delas permite downgrade para HTTP.
-- **Retenção/exclusão de dados (LGPD):** **não resolvido nesta seção** — a escolha da região `sa-east-1` (Seção 2.2) citou LGPD como motivação, mas a arquitetura ainda não define política de retenção/exclusão para `leads`/`orders`/`subscriptions`. Tratado à parte, como decisão de negócio antes do go-live do Epic 2 (ver perguntas separadas, fora deste documento).
+- **Retenção/exclusão de dados (LGPD) — resolvido, decisão de negócio confirmada (PRD Seção 2.5):**
+  - **DPO:** Gustavo (fundador) — contato formal na política de privacidade.
+  - **`leads`:** retenção de 12 meses desde `createdAt`, exclusão física automática via job (Story 1.7, ver Seção 5 `/api/cron/purge-leads`). Requer `consentGiven: true` no momento da captura (Seção 4.5) — sem base legal de contrato, depende de consentimento explícito.
+  - **`orders`/`subscriptions`:** retenção de 5 anos por obrigação fiscal — nunca purgados automaticamente pelo job de leads; sem job de expurgo no MVP (fora de escopo, prazo longo o suficiente para não ser urgente).
+  - **Exclusão sob demanda:** **anonimização**, não DELETE físico — `orders.customer_email` e dados pessoais do `auth.users` (nome, e-mail, telefone) tornam-se `[removido]`; `stripe_customer_id`/`stripe_checkout_session_id` são preservados como referência fiscal. Processo manual (dev/DPO executa via script/SQL quando solicitação chega por e-mail) — sem endpoint self-service no MVP (PRD 2.3, Out of Scope).
 
 ### 13.2 Performance Optimization
 
