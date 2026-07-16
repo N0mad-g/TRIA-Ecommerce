@@ -349,3 +349,76 @@ Nenhum audit log customizado (NFR7) — `updated_at` em cada tabela serve como s
 ### Compliance (LGPD)
 
 Já formalizado em PRD 2.5 e Architecture 13.1 — este schema implementa fisicamente: retenção via `leads.created_at` + índice dedicado (purga automática), retenção fiscal via `ON DELETE SET NULL` em `orders`/`subscriptions.user_id` (preserva o registro, remove o vínculo pessoal), consentimento via `leads.consent_given CHECK (= true)`.
+
+## 9. Supabase-Specific Configuration
+
+### RLS Policies
+
+Detalhadas por tabela na Seção 8 — não repetido aqui.
+
+### Realtime Configuration
+
+**Não habilitado** em nenhuma tabela no MVP. Candidato natural seria `subscriptions` (UI de `/conta` poderia refletir `pending → active` ao vivo, sem esperar `router.refresh()`) — mas a Architecture já resolveu esse fluxo via revalidação pós-ação (8.2), sem depender de subscription client-side. Habilitar Realtime agora seria complexidade adicional sem necessidade comprovada — candidato a melhoria pós-MVP, não requisito atual.
+
+### Edge Functions
+
+Nenhuma. Toda lógica de negócio passa por Route Handlers do Next.js (padrão BFF, Architecture 2.5) — Supabase é usado como banco + Auth, não como camada de compute. Sem triggers de banco chamando Edge Functions.
+
+### Storage Integration
+
+N/A — decisão já tomada na Architecture (Seção 3, Tech Stack): fotos de produto ficam em `public/` estático do Next.js, não em Supabase Storage, porque o catálogo é fixo/seedado, não upload dinâmico de usuário. Nenhum bucket a configurar.
+
+### Auth Integration
+
+`auth.users` é referenciado por FK em `orders`/`subscriptions` (Seção 4/7), nunca duplicado. Nenhum campo de perfil customizado identificado no PRD/Architecture além do que o Supabase Auth já guarda nativamente (e-mail) — a "Área do Cliente" (Story 3.3) exibe dado de `orders`/`subscriptions`, não um perfil estendido. Sem `user_metadata` customizado necessário no MVP. Multi-tenancy: N/A, aplicação single-tenant.
+
+## 10. Migration & Evolution Strategy
+
+### Initial Migration
+
+Organização em arquivos incrementais por story (decisão já tomada, Architecture 12.4/4.4): cada migration que altera schema vive no mesmo commit/PR do código que depende dela. Para o schema deste documento, a migration inicial (Story 1.2) cria as 6 tabelas na ordem de dependência: `products`, `protocols` → `protocol_products` (depende das duas) → `orders`, `subscriptions` (dependem de `products`/`protocols` e `auth.users`, que já existe nativamente) → `leads` (independente, pode vir em qualquer ordem). Seed data (5 produtos, 3 protocolos) na mesma migration ou script separado imediatamente após — nunca dados de catálogo hardcoded na aplicação.
+
+### Change Management
+
+**Convenção de nome:** `supabase migrations new <descricao_snake_case>` gera timestamp automático — sem convenção adicional necessária, o CLI já ordena por timestamp.
+**Up/Down:** Supabase CLI gera migrations "up" apenas por padrão; script de rollback (down) é responsabilidade de quem escreve a migration quando a mudança não é trivialmente reversível (ex: um `DROP COLUMN` precisa de rollback que recria a coluna, mesmo que vazia).
+**Teste:** toda migration passa por `supabase db diff`/dry-run local antes de commitar (comando `*dry-run` desta agente) — nunca aplicada direto em produção sem ter rodado local primeiro.
+
+### Versioning
+
+Schema versionado implicitamente pelo histórico de migrations do Supabase CLI (`supabase/migrations/*.sql`, timestamp no nome) — mesma fonte de verdade que o Git, sem ferramenta de versionamento de schema separada (Flyway/Liquibase seriam redundantes aqui).
+
+### Backward Compatibility
+
+Não aplicável em sentido estrito — MVP pré-lançamento, sem consumidores externos da API pública versionada a preservar (a "API" é interna, Architecture Seção 5). Regra prática: nenhuma migration remove uma coluna que uma story de Epic anterior já depende, sem primeiro confirmar que nenhum código em produção ainda a lê.
+
+### Rollback Strategy
+
+**Quando é seguro:** migrations aditivas (nova tabela, nova coluna nullable, novo índice) — sempre seguras de reverter via `DROP`, sem perda de dado além do que a própria migration criou.
+**Quando não é seguro:** qualquer migration que já rodou em produção com dados reais gravados na nova estrutura (ex: `subscriptions.status` já populado) — reverter exigiria decidir o que fazer com esse dado, não é automático. Ligado à ressalva já registrada na Architecture (12.1): rollback de **código** via Vercel é instantâneo, mas não desfaz uma migration de banco já aplicada — por isso a regra "migration no mesmo commit do código" existe, para minimizar a janela onde os dois podem divergir.
+
+## 11. Performance Optimization
+
+### Query Optimization
+
+Nenhuma query cara identificada — catálogo de 5 produtos/3 protocolos e volume transacional baixo (Seção 1) tornam qualquer query dos 9 padrões (Seção 3) trivial para o Postgres, todas via PK ou índice dedicado (Seção 6). Padrão repository-lite (Architecture 2.5) faz uma query explícita por necessidade — sem risco de N+1, porque não há ORM gerando queries implícitas em loop.
+
+### Connection Pooling
+
+**N/A no nível da aplicação — corrigindo um conselho que escrevi errado antes de apresentar.** Pooler (porta 6543, pgbouncer) importa para quem abre conexão Postgres direta (driver `pg`, Prisma com `DATABASE_URL`). Esta arquitetura usa `supabase-js` exclusivamente em todo Route Handler (`createServerSupabaseClient()`/`createServiceRoleSupabaseClient()`, Architecture 9.1/9.2) — que fala HTTP com a camada PostgREST do Supabase, não abre conexão Postgres crua. O pooling entre PostgREST e o Postgres é responsabilidade interna do Supabase, transparente, sem decisão de porta/connection-string da nossa parte. Única conexão direta ao Postgres no projeto é a do próprio Supabase CLI durante `supabase db push` (migrations) — gerenciada pela ferramenta, não configurada manualmente por nós.
+
+### Caching Strategy
+
+Nenhuma camada de cache no nível do banco (Redis, etc.) — decisão já tomada (Architecture Seção 3, Cache: Nenhum) e coberta pelo ISR/fetch cache do Next.js na camada de aplicação. Adicionar cache no banco seria uma segunda camada de cache para o mesmo dado, sem necessidade demonstrada na escala atual.
+
+### Partitioning
+
+N/A — nenhuma tabela se aproxima de volume que justifique particionamento (nem `leads`, a de maior crescimento relativo, dado o expurgo automático de 12 meses limitando o tamanho máximo).
+
+### Read Replicas
+
+N/A — volume de leitura não justifica, e a maioria das leituras de catálogo nem chega ao banco (ISR, Architecture 2.5) na maior parte do tempo.
+
+### Monitoring
+
+`pg_stat_statements` (extensão nativa do Postgres, habilitável no Supabase) para identificar queries lentas se/quando o volume crescer — não configurado proativamente agora (NFR7), fica como primeiro passo de investigação se performance virar problema real, não como monitoramento contínuo custom.
