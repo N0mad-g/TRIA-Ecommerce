@@ -159,7 +159,7 @@ Como dev, quero o projeto Next.js 16 (App Router) inicializado com Tailwind, Fra
 3: Deploy automático na Vercel a partir do branch main funcional (preview URL acessível).
 4: Página inicial temporária ("health check") renderiza sem erro em produção.
 5: Jest + React Testing Library instalados e configurados, com um teste de exemplo passando (`npm test`).
-6: `README.md` documenta setup local (pré-requisitos, instalação, comandos de dev/test/build) e `.env.example` lista **os nomes** de todas as variáveis de ambiente necessárias (Stripe: publishable/secret/webhook secret; Supabase: URL/anon/service role) sem valores reais — cobre o achado do @po (PO Master Checklist, categoria 1.1) que ficou pendente da rodada de fixes anterior.
+6: `README.md` documenta setup local (pré-requisitos, instalação, comandos de dev/test/build) e `.env.example` lista **os nomes** de todas as variáveis de ambiente necessárias (Stripe: publishable/secret/webhook secret; Supabase: URL/anon/service role; App: `APP_URL`; Cron: `CRON_SECRET` — Story 1.7, LGPD) sem valores reais — cobre o achado do @po (PO Master Checklist, categoria 1.1) que ficou pendente da rodada de fixes anterior. Lista completa de referência: Architecture Seção 11.2.
 
 ### Story 1.2 Database Schema & Catalog Seed
 
@@ -344,7 +344,7 @@ Como cliente logado, quero pausar, trocar ou cancelar meu protocolo assinado na 
 ### Executive Summary
 
 - **Completude geral do PRD:** ~85%
-- **Adequação do escopo MVP:** Just Right — 3 épicos, 15 stories, sem feature supérflua identificada
+- **Adequação do escopo MVP:** Just Right — 3 épicos, 16 stories, sem feature supérflua identificada
 - **Prontidão para fase de arquitetura:** Ready
 - **Gaps remanescentes:** menores (análise competitiva formal, diagramas de fluxo) — nenhum bloqueia o Architect
 
@@ -387,4 +387,4 @@ Use este PRD (`docs/prd.md`) como entrada para o modo de criação de arquitetur
 
 ### 10.2 Architect Prompt
 
-Use este PRD (`docs/prd.md`) como entrada para o modo de criação de arquitetura. Escopo: monolito serverless Next.js 16 + Supabase (Postgres/Auth) + Stripe (Checkout hospedado + Subscriptions), deploy Vercel, 3 épicos / 15 stories sequenciais já definidos (Seções 6-8). Pontos que precisam de decisão arquitetural explícita: schema de dados (produtos/protocolos/pedidos/assinaturas), estratégia de webhook idempotente, e mapeamento de price IDs do Stripe por protocolo/produto.
+Use este PRD (`docs/prd.md`) como entrada para o modo de criação de arquitetura. Escopo: monolito serverless Next.js 16 + Supabase (Postgres/Auth) + Stripe (Checkout hospedado + Subscriptions), deploy Vercel, 3 épicos / 16 stories sequenciais já definidos (Seções 6-8). Pontos que precisam de decisão arquitetural explícita: schema de dados (produtos/protocolos/pedidos/assinaturas), estratégia de webhook idempotente, e mapeamento de price IDs do Stripe por protocolo/produto.
