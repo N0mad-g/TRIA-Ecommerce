@@ -376,7 +376,7 @@ N/A — decisão já tomada na Architecture (Seção 3, Tech Stack): fotos de pr
 
 ### Initial Migration
 
-Organização em arquivos incrementais por story (decisão já tomada, Architecture 12.4/4.4): cada migration que altera schema vive no mesmo commit/PR do código que depende dela. Para o schema deste documento, a migration inicial (Story 1.2) cria as 6 tabelas na ordem de dependência: `products`, `protocols` → `protocol_products` (depende das duas) → `orders`, `subscriptions` (dependem de `products`/`protocols` e `auth.users`, que já existe nativamente) → `leads` (independente, pode vir em qualquer ordem). Seed data (5 produtos, 3 protocolos) na mesma migration ou script separado imediatamente após — nunca dados de catálogo hardcoded na aplicação.
+Organização em arquivos incrementais por story (decisão já tomada, Architecture 12.4/4.4): cada migration que altera schema vive no mesmo commit/PR do código que depende dela. **Corrigido (era autocontraditório — dizia a regra e a quebrava na mesma frase):** a migration inicial (Story 1.2) cria só `products`, `protocols`, `protocol_products` — as três que o seed do catálogo precisa. `orders`/`subscriptions` ganham migration própria na Story 2.2 (junto com o webhook que primeiro escreve nelas); `leads` ganha migration própria na Story 1.3 (junto com o formulário que primeiro escreve nela). Seed data (5 produtos, 3 protocolos) na mesma migration da Story 1.2 ou script separado imediatamente após — nunca dados de catálogo hardcoded na aplicação. Ver Seção 14 (Implementation Plan) para o detalhamento completo por story.
 
 ### Change Management
 
@@ -454,11 +454,15 @@ Sem projeção formal de crescimento (NFR7) — a métrica que importa é a do P
 
 ## 14. Implementation Plan
 
-**Fase 1 — Core Schema (Story 1.2):** ordem de criação já definida na Seção 10 — `products`/`protocols` primeiro (sem dependência), `protocol_products` em seguida (depende dos dois), `orders`/`subscriptions`/`leads` por último (dependem de `products`/`protocols`/`auth.users`, mas são independentes entre si). Seed dos 5 produtos/3 protocolos na mesma migration ou script imediatamente subsequente.
+**Correção (achado ao gerar a Story 1.2 — contradição com Coding Standards regra 6, "migration no mesmo commit do código que depende dela"):** a versão anterior desta seção colocava as 6 tabelas numa migration única na Story 1.2. Isso contradiz a regra já fechada nesta sessão — `orders`/`subscriptions` só têm código que escreve nelas na Story 2.2 (webhook), `leads` só na Story 1.3 (formulário). Migration única e antecipada quebraria essa regra sem necessidade real (não há dado legado forçando isso — "greenfield" justifica não ter *fases* de migração de dado antigo, não justifica *antecipar* schema sem código correspondente). Corrigido para incremental, por story:
 
-**Fase 2 — Índices & Constraints:** todos os índices e constraints da Seção 6/7 fazem parte do mesmo DDL inicial da Fase 1 — não há uma fase separada de "adicionar depois" neste schema, porque não há dado legado a migrar (greenfield). A separação em fases do template não se aplica literalmente aqui; registrado como uma fase única "Core Schema + Índices + Constraints".
+**Story 1.2 (Core Schema — Catálogo):** `products`, `protocols`, `protocol_products` — índices, constraints e RLS da Seção 6/7/8 aplicados no mesmo DDL, já que essas 3 tabelas nascem juntas (o seed dos 5 produtos/3 protocolos depende das três). RLS habilitado desde o `CREATE TABLE` — nunca uma tabela fica aberta entre criação e proteção.
 
-**Fase 3 — Security & RLS:** policies da Seção 8 aplicadas na mesma migration inicial — RLS habilitado desde o primeiro `CREATE TABLE`, nunca uma tabela fica "aberta" temporariamente entre criação e proteção.
+**Story 2.2 (Webhook Handler):** migration própria criando `orders`/`subscriptions`, com seus índices/constraints/RLS — no mesmo commit do Route Handler que primeiro escreve nelas.
+
+**Story 1.3 (Home Page, formulário de lead):** migration própria criando `leads`, no mesmo commit do `POST /api/leads` que primeiro escreve nela.
+
+**Story 1.7 (Purga de Leads):** não cria tabela nova — só adiciona o Cron Job que consome `leads.created_at` (já existe desde a Story 1.3).
 
 **Fase 4 — Otimização:** não aplicável no lançamento — monitoramento via `pg_stat_statements` (Seção 11) só entra em ação se/quando houver sinal real de lentidão, pós-lançamento.
 
@@ -466,7 +470,7 @@ Sem projeção formal de crescimento (NFR7) — a métrica que importa é a do P
 
 ## 15. Appendix
 
-**SQL Scripts:** DDL completo desta seção (Seção 4) é a fonte para o arquivo de migration real — `@data-engineer` gera o `.sql` formal em `supabase/migrations/` a partir deste documento na Story 1.2, não o inverso.
+**SQL Scripts:** DDL completo desta seção (Seção 4) é a fonte para os arquivos de migration reais — `@data-engineer` gera o `.sql` formal em `supabase/migrations/` a partir deste documento, um arquivo por story conforme o cronograma da Seção 14 (Story 1.2: catálogo; Story 2.2: orders/subscriptions; Story 1.3: leads), não o inverso.
 
 **`COMMENT ON` obrigatório no DDL final (achado do próprio checklist desta agente — princípio "Documentation embedded when possible" nunca tinha virado plano concreto):** todo `CREATE TABLE` do DDL final deve incluir `COMMENT ON TABLE` com a `Purpose` já escrita na Seção 4, e `COMMENT ON COLUMN` nas colunas não-óbvias — mínimo obrigatório: `orders.user_id`/`subscriptions.user_id` (explicar o `SET NULL` por LGPD), `leads.consent_given` (explicar o CHECK), `protocol_products` (explicar por que não tem timestamps, nota acima). Garante que quem abrir o schema direto no Supabase Studio (sem ler este documento) ainda entenda as decisões não-óbvias.
 
