@@ -158,7 +158,7 @@ Como dev, quero o projeto Next.js 16 (App Router) inicializado com Tailwind, Fra
 2: Tailwind CSS, Framer Motion e lucide-react instalados e configurados.
 3: Deploy automático na Vercel a partir do branch main funcional (preview URL acessível).
 4: Página inicial temporária ("health check") renderiza sem erro em produção.
-5: Jest + React Testing Library instalados e configurados, com um teste de exemplo passando (`npm test`).
+5: Jest + React Testing Library + jest-axe instalados e configurados, com um teste de exemplo passando (`npm test`) — jest-axe adicionado quando WCAG AA virou requisito operacionalizado (Architecture Seção 8.5/3, Tech Stack).
 6: `README.md` documenta setup local (pré-requisitos, instalação, comandos de dev/test/build) e `.env.example` lista **os nomes** de todas as variáveis de ambiente necessárias (Stripe: publishable/secret/webhook secret; Supabase: URL/anon/service role; App: `APP_URL`; Cron: `CRON_SECRET` — Story 1.7, LGPD) sem valores reais — cobre o achado do @po (PO Master Checklist, categoria 1.1) que ficou pendente da rodada de fixes anterior. Lista completa de referência: Architecture Seção 11.2.
 
 ### Story 1.2 Database Schema & Catalog Seed
