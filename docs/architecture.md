@@ -1091,11 +1091,11 @@ Deploy em si **não** é feito por esse workflow — a integração nativa Verce
 
 ### 12.3 Environments
 
-| Environment | Frontend URL | Backend URL | Purpose | Stripe Keys |
-|---|---|---|---|---|
-| Development | `localhost:3000` | `localhost:3000/api/*` | Desenvolvimento local | **Test mode** (`sk_test_...`, `whsec_...` do `stripe listen`) |
-| Preview | `tria-git-<branch>.vercel.app` (auto por PR) | mesmo domínio `/api/*` | Revisão de PR antes do merge | **Test mode** (`sk_test_...`) |
-| Production | domínio definitivo TRIA (a definir — DNS não coberto neste MVP) | mesmo domínio `/api/*` | Ambiente live | **Live mode** (`sk_live_...`) |
+| Environment | Frontend URL | Backend URL | Purpose | Stripe Keys | Supabase |
+|---|---|---|---|---|---|
+| Development | `localhost:3000` | `localhost:3000/api/*` | Desenvolvimento local | **Test mode** (`sk_test_...`, `whsec_...` do `stripe listen`) | Projeto local (`supabase start`) ou branch de dev dedicado |
+| Preview | `tria-git-<branch>.vercel.app` (auto por PR) | mesmo domínio `/api/*` | Revisão de PR antes do merge | **Test mode** (`sk_test_...`) | **Preview Branch isolado por PR** (Seção 12.4) — nunca o banco de produção |
+| Production | domínio definitivo TRIA (a definir — DNS não coberto neste MVP) | mesmo domínio `/api/*` | Ambiente live | **Live mode** (`sk_live_...`) | Projeto principal |
 
 **Nota:** ambiente de "Staging" separado não existe — Preview deployments da Vercel (um por PR, efêmero) cumprem esse papel sem precisar de infraestrutura dedicada, consistente com NFR7 (sem infra customizada).
 
@@ -1105,7 +1105,11 @@ Deploy em si **não** é feito por esse workflow — a integração nativa Verce
 
 > Resolve o fio solto da Seção 3/4.4 (NFR: "migrations via Supabase CLI, incrementais por story") — define **quando e onde** isso roda, não só que ferramenta usa.
 
-**Decisão:** um único projeto Supabase é compartilhado entre Preview e Production (sem banco efêmero por PR — over-engineering para o escopo enxuto do MVP, NFR7). Migrations rodam **apenas no build de Production** (branch `main`), como parte do próprio `build` command da Vercel — nunca em Preview, para que um PR aberto (ainda não revisado) não altere o schema compartilhado antes do merge.
+**Decisão (revisada — achado do `@data-engineer`, Dara, durante o schema design):** a versão original desta seção compartilhava um único projeto Supabase entre Preview e Production. Isso foi identificado como risco real: qualquer PR aberto (URL pública `tria-git-<branch>.vercel.app`) leria/escreveria dado real de cliente no mesmo banco assim que houvesse PII de verdade em produção. Decisão de negócio confirmada: **Supabase Preview Branches**.
+
+**Production** continua usando o projeto Supabase principal — migrations aplicadas no build (inalterado, `vercel-build` abaixo).
+
+**Preview** passa a usar **Supabase Preview Branches** (feature nativa do Supabase, requer plano Pro+) — cria automaticamente um branch de banco Postgres **isolado por Pull Request**, via integração GitHub↔Supabase, com migrations aplicadas automaticamente àquele branch (nunca ao banco de produção) assim que o PR abre. A integração Supabase↔Vercel injeta as env vars (`NEXT_PUBLIC_SUPABASE_URL`, chaves) do branch específico automaticamente no Preview Deployment correspondente — sem configuração manual por PR. O branch é destruído automaticamente quando o PR fecha/mescla.
 
 ```json
 // package.json
@@ -1116,6 +1120,10 @@ Deploy em si **não** é feito por esse workflow — a integração nativa Verce
   }
 }
 ```
+
+**A condição `VERCEL_ENV = production` acima continua correta**, mas o motivo mudou: antes, Preview nunca migrava porque bateria no banco de produção compartilhado; agora, o branch de Preview sempre migra, mas isso é responsabilidade da integração nativa Supabase↔GitHub (fora deste script), não do `vercel-build` — que segue cuidando exclusivamente do banco de Production.
+
+**Nota sobre NFR7:** Preview Branches é feature **nativa** do Supabase (zero infraestrutura customizada para construir/manter, o que o NFR7 realmente pede) — mas não é gratuita, exige plano Pro+ do Supabase. Diferente das outras escolhas "sem custo adicional" deste documento (Vercel Firewall, Cron Jobs), esta tem implicação de custo direta — vale confirmar que o plano Supabase já contratado (ou a contratar) cobre isso antes do go-live.
 
 **Por que no build da Vercel, e não num step do GitHub Actions:** o workflow de teste (Seção 12.2) e o deploy da Vercel rodam em **paralelo**, sistemas independentes — um `supabase db push` dentro do GitHub Actions não teria nenhuma garantia de terminar antes do build da Vercel começar. Colocar a migration dentro do próprio `vercel-build` garante ordem sequencial e bloqueante: se a migration falhar, o build falha, e o deploy do código que espera o schema novo nunca acontece com o schema velho.
 

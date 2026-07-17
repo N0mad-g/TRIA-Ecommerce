@@ -340,7 +340,7 @@ Supabase Auth (Architecture 9.3) — não reimplementado aqui; este documento s�
 >
 > **Decisão confirmada:** **Supabase Preview Branches** (branching nativo de banco por PR) — nativo da plataforma, zero infraestrutura extra, alinhado ao NFR7, resolve o isolamento de PII sem manter um segundo projeto Supabase.
 >
-> **Status:** registrado como item **obrigatório antes do primeiro cliente real** (não bloqueia o trabalho de schema/dev agora, pré-lançamento sem PII real). Requer revisão da Architecture 12.4 pelo `@architect` (Aria) — atualizar a decisão de "projeto único compartilhado" para "Preview Branches" antes do dev kickoff do fluxo de pagamento em produção real.
+> **Status: ✅ Resolvido.** Architecture 12.3/12.4 atualizada pela `@architect` (Aria) para Supabase Preview Branches. Rastreado em `docs/pending-before-golive.md`.
 
 ### Audit Logging
 
