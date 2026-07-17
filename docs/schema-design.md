@@ -422,3 +422,54 @@ N/A — volume de leitura não justifica, e a maioria das leituras de catálogo 
 ### Monitoring
 
 `pg_stat_statements` (extensão nativa do Postgres, habilitável no Supabase) para identificar queries lentas se/quando o volume crescer — não configurado proativamente agora (NFR7), fica como primeiro passo de investigação se performance virar problema real, não como monitoramento contínuo custom.
+
+## 12. Scalability & Growth
+
+### Vertical Scaling
+
+Gerenciado pelo Supabase (upgrade de tier de compute via dashboard, sem migração de dado) — nenhuma ação de configuração necessária agora; decisão a se tomar com dado real de carga, não especulação pré-lançamento.
+
+### Horizontal Scaling
+
+N/A no nível do banco — uma instância Postgres única é suficiente na escala do PRD Goal 1 (≥50 checkouts/4 semanas). Escala horizontal já existe na camada de aplicação (Route Handlers serverless da Vercel, Architecture 9.1), que é onde a carga de requisições realmente cresce primeiro, não no banco.
+
+### Data Archival
+
+- `leads`: sem arquivamento — purga (DELETE físico) após 12 meses, não move para armazenamento frio (Story 1.7, LGPD).
+- `orders`/`subscriptions`: sem arquivamento no MVP — retenção fiscal de 5 anos mantida nas tabelas principais; volume desta fase não justifica separar dado "quente" de "frio".
+
+### Growth Projections
+
+Sem projeção formal de crescimento (NFR7) — a métrica que importa é a do PRD Goal 1 (checkouts iniciados), lida do Stripe, não do banco. Se o catálogo crescer além de 5 produtos/3 protocolos (decisão de negócio futura, fora do escopo deste PRD), o schema já comporta sem alteração — `products`/`protocols`/`protocol_products` não têm limite embutido, só cresceriam em volume de linhas, ainda trivial para o Postgres nas ordens de grandeza plausíveis para este negócio.
+
+## 13. Testing & Validation
+
+**Unit Tests:** nenhuma função/procedure de banco customizada foi definida (toda lógica fica na camada de aplicação, Architecture 2.5) — "unit test de banco" aqui se resume a validação de constraint (ex: `INSERT` com `consent_given = false` deve falhar, `INSERT` duplicado em `stripe_checkout_session_id` deve violar UNIQUE). Cobertura de RLS já especificada na Architecture 14.3 (`supabase/rls.test.ts`) — não duplicado aqui.
+
+**Integration Tests:** teste de idempotência do webhook (Architecture 14.3, `orders.test.ts`) já cobre parcialmente concorrência — dois webhooks entregando o mesmo evento batem no mesmo `UNIQUE constraint`, um vence e o outro é tratado como duplicado (código `23505`), não como erro real. Teste de transação explícito não necessário além disso — nenhuma operação deste schema faz múltiplos `INSERT`/`UPDATE` que precisem de transação manual (cada Route Handler faz uma escrita atômica por vez).
+
+**Load Testing:** N/A — decisão consciente (NFR7), consistente com a ausência de budget de performance formal (Architecture 13.2). Sem teste de carga planejado para o estágio de validação do MVP.
+
+**Data Validation:** verificação de constraint acontece automaticamente no momento do seed (Story 1.2) — se o seed violar um CHECK/UNIQUE, a migration falha e o deploy é bloqueado (Architecture 12.4), não é um teste separado a manter. Integridade referencial garantida pelas FKs em si (Seção 7) — um `INSERT` em `orders` com `product_id` inexistente falha no banco, não só na validação de aplicação.
+
+## 14. Implementation Plan
+
+**Fase 1 — Core Schema (Story 1.2):** ordem de criação já definida na Seção 10 — `products`/`protocols` primeiro (sem dependência), `protocol_products` em seguida (depende dos dois), `orders`/`subscriptions`/`leads` por último (dependem de `products`/`protocols`/`auth.users`, mas são independentes entre si). Seed dos 5 produtos/3 protocolos na mesma migration ou script imediatamente subsequente.
+
+**Fase 2 — Índices & Constraints:** todos os índices e constraints da Seção 6/7 fazem parte do mesmo DDL inicial da Fase 1 — não há uma fase separada de "adicionar depois" neste schema, porque não há dado legado a migrar (greenfield). A separação em fases do template não se aplica literalmente aqui; registrado como uma fase única "Core Schema + Índices + Constraints".
+
+**Fase 3 — Security & RLS:** policies da Seção 8 aplicadas na mesma migration inicial — RLS habilitado desde o primeiro `CREATE TABLE`, nunca uma tabela fica "aberta" temporariamente entre criação e proteção.
+
+**Fase 4 — Otimização:** não aplicável no lançamento — monitoramento via `pg_stat_statements` (Seção 11) só entra em ação se/quando houver sinal real de lentidão, pós-lançamento.
+
+**Rollout:** aplicado uma única vez, no build de Production (Architecture 12.4) — sem rollout gradual/feature-flag no nível de banco (schema novo, sem usuários existentes para migrar). Validação: `*smoke-test` (comando desta agente) roda os testes da Seção 13 contra o schema recém-criado antes do primeiro deploy real ser considerado bem-sucedido.
+
+## 15. Appendix
+
+**SQL Scripts:** DDL completo desta seção (Seção 4) é a fonte para o arquivo de migration real — `@data-engineer` gera o `.sql` formal em `supabase/migrations/` a partir deste documento na Story 1.2, não o inverso.
+
+**ER Diagram:** ver relacionamentos textuais da Seção 2; diagrama visual (Mermaid ER) pode ser gerado como follow-up se `@dev`/`@sm` sentirem necessidade durante a implementação — não bloqueante para começar.
+
+**Glossário:** termos de negócio (Protocolo, não "Kit"; assinatura vs. avulso) já glossados no PRD (Seção 4, Requirements) — não duplicado aqui.
+
+**Referências:** PRD (`docs/prd.md`), Architecture (`docs/architecture.md` Seções 4, 7, 9, 11-13, 17-18) — este documento não é standalone, é a continuação direta dos dois.
