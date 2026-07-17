@@ -160,6 +160,7 @@ Como dev, quero o projeto Next.js 16 (App Router) inicializado com Tailwind, Fra
 4: Página inicial temporária ("health check") renderiza sem erro em produção.
 5: Jest + React Testing Library + jest-axe instalados e configurados, com um teste de exemplo passando (`npm test`) — jest-axe adicionado quando WCAG AA virou requisito operacionalizado (Architecture Seção 8.5/3, Tech Stack).
 6: `README.md` documenta setup local (pré-requisitos, instalação, comandos de dev/test/build) e `.env.example` lista **os nomes** de todas as variáveis de ambiente necessárias (Stripe: publishable/secret/webhook secret; Supabase: URL/anon/service role; App: `APP_URL`; Cron: `CRON_SECRET` — Story 1.7, LGPD) sem valores reais — cobre o achado do @po (PO Master Checklist, categoria 1.1) que ficou pendente da rodada de fixes anterior. Lista completa de referência: Architecture Seção 11.2.
+7: Workflow `.github/workflows/test.yaml` criado, rodando `npm test`/`npm run build` em Pull Requests contra `main` — gate de qualidade que a Vercel sozinha não garante (Architecture Seção 12.2). Sem isso, nenhuma story do PRD cria o gate que a Architecture assume existir.
 
 ### Story 1.2 Database Schema & Catalog Seed
 
