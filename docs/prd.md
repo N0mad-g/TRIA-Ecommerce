@@ -65,7 +65,7 @@ _(Trazido diretamente da seção 13 do Project Brief — "Restrições e Não-Es
 _(Tarefas humanas que precisam existir antes das stories que dependem delas — nenhum agente pode executá-las)_
 
 - **Conta Stripe:** criar conta, configurar modo live/test, e fornecer API keys (publishable + secret + webhook signing secret) antes da Story 2.1.
-- **Conta Supabase:** criar projeto e fornecer URL + chaves (anon/service role) antes da Story 1.2.
+- **Conta Supabase:** criar **dois** projetos — produção e um segundo dedicado a Preview/desenvolvimento (free tier, decisão de Architecture 12.4/LGPD) — e fornecer URL + chaves (anon/service role) de cada antes da Story 1.2.
 - **Fotos dos 5 produtos:** já existem — serão fornecidas via pasta `assets/produtos/` antes da Story 1.2.
 
 ### 2.5 LGPD / Privacidade de Dados
