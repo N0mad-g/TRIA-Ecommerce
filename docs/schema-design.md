@@ -140,7 +140,7 @@ Nenhuma — decisão consciente (NFR7). Métricas de negócio (checkouts, conver
 
 **Indexes:** `idx_protocol_products_product` (product_id) — serve a query inversa (`WHERE product_id = ?`, padrão #8 da Seção 3); a PK composta já serve `WHERE protocol_id = ?` porque `protocol_id` é a primeira coluna.
 
-**Notes:** `ON DELETE CASCADE` é seguro aqui — catálogo não tem edição via admin no MVP (só migration/seed), então nunca vai acontecer um DELETE acidental de produto/protocolo em produção fora de um deploy controlado.
+**Notes:** `ON DELETE CASCADE` é seguro aqui — catálogo não tem edição via admin no MVP (só migration/seed), então nunca vai acontecer um DELETE acidental de produto/protocolo em produção fora de um deploy controlado. **Sem `created_at`/`updated_at`, decisão explícita, não omissão** — diferente de todas as outras 5 tabelas: esta é uma tabela de associação pura, seedada uma única vez (Story 1.2) e nunca atualizada programaticamente (sem admin panel) — um `updated_at` nunca mudaria de valor, e `created_at` sempre seria idêntico ao timestamp do seed em todas as linhas, sem informação diferenciadora. Adicionar os dois só para seguir convenção cegamente violaria o próprio princípio de "sem redundância sem razão explícita" (Seção 5).
 
 ### `orders`
 
@@ -467,6 +467,8 @@ Sem projeção formal de crescimento (NFR7) — a métrica que importa é a do P
 ## 15. Appendix
 
 **SQL Scripts:** DDL completo desta seção (Seção 4) é a fonte para o arquivo de migration real — `@data-engineer` gera o `.sql` formal em `supabase/migrations/` a partir deste documento na Story 1.2, não o inverso.
+
+**`COMMENT ON` obrigatório no DDL final (achado do próprio checklist desta agente — princípio "Documentation embedded when possible" nunca tinha virado plano concreto):** todo `CREATE TABLE` do DDL final deve incluir `COMMENT ON TABLE` com a `Purpose` já escrita na Seção 4, e `COMMENT ON COLUMN` nas colunas não-óbvias — mínimo obrigatório: `orders.user_id`/`subscriptions.user_id` (explicar o `SET NULL` por LGPD), `leads.consent_given` (explicar o CHECK), `protocol_products` (explicar por que não tem timestamps, nota acima). Garante que quem abrir o schema direto no Supabase Studio (sem ler este documento) ainda entenda as decisões não-óbvias.
 
 **ER Diagram:** ver relacionamentos textuais da Seção 2; diagrama visual (Mermaid ER) pode ser gerado como follow-up se `@dev`/`@sm` sentirem necessidade durante a implementação — não bloqueante para começar.
 
