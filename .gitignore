@@ -1,21 +1,31 @@
-
-
 # Environment & Secrets (AIOX)
 .env
 .env.local
 .env.*.local
 *.key
 *.pem
+# .env.example is intentionally NOT ignored — Story 1.1 AC6 requires it committed
 
-# Dependencies (AIOX)
+# Dependencies
+/node_modules
 node_modules/
-node_modules
+/.pnp
+.pnp.*
+
+# Next.js build outputs
+/.next/
+.next/
+/out/
+/build
+
+# Testing
+/coverage
 
 # Build & Logs (AIOX)
 dist/
-build/
 *.log
 logs/
+npm-debug.log*
 
 # IDE & OS (AIOX)
 .DS_Store
@@ -28,6 +38,9 @@ Thumbs.db
 .claude/settings.local.json
 .aiox/install-log.txt
 
-# Next.js build outputs
-.next/
-out/
+# Vercel
+.vercel
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts

@@ -654,11 +654,15 @@ interface SubscriptionActionState {
 
 ```typescript
 // app/produtos/page.tsx
-export default async function ProdutosPage({ searchParams }: { searchParams: { item?: string } }) {
-  const products = await getProducts();
-  const initialIndex = searchParams.item
-    ? Math.max(0, products.findIndex((p) => p.slug === searchParams.item))
-    : 0;
+// Next.js 16: searchParams é Promise, precisa await (breaking change vs versões anteriores —
+// achado ao ler node_modules/next/dist/docs/ durante a Story 1.1, corrigido antes da Story 1.5 implementar)
+export default async function ProdutosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ item?: string }>;
+}) {
+  const [products, { item }] = await Promise.all([getProducts(), searchParams]);
+  const initialIndex = item ? Math.max(0, products.findIndex((p) => p.slug === item)) : 0;
   return <ProductCarousel products={products} initialIndex={initialIndex} />;
 }
 ```
