@@ -1,0 +1,57 @@
+schema: 1
+story: '1.1'
+story_title: 'Project Setup & Deploy Pipeline'
+gate: PASS
+status_reason: '7/7 ACs verificadas empiricamente (build, test, deploy real). 4 achados encontrados durante a review (WCAG lang, metadata boilerplate, lint faltando no CI gate, .gitignore duplicado) foram corrigidos diretamente na própria review, não deixados como dívida.'
+reviewer: 'Quinn (Test Architect)'
+updated: '2026-07-19T00:00:00Z'
+
+top_issues:
+  - issue: 'app/layout.tsx tinha lang="en" num site 100% PT-BR (WCAG 3.1.1, nível A)'
+    severity: medium
+    status: fixed
+    suggested_owner: qa
+  - issue: 'app/layout.tsx metadata (title/description) com boilerplate do scaffold, persiste em todas as páginas'
+    severity: low
+    status: fixed
+    suggested_owner: qa
+  - issue: '.github/workflows/test.yaml não rodava npm run lint — gap que já existia na especificação da Architecture (12.2), não desvio do @dev'
+    severity: medium
+    status: fixed
+    suggested_owner: qa
+  - issue: '.gitignore com .vercel duplicado (gerado automaticamente pelo vercel link)'
+    severity: low
+    status: fixed
+    suggested_owner: qa
+
+waiver: { active: false }
+
+quality_score: 100
+expires: '2026-08-02T00:00:00Z'
+
+evidence:
+  tests_reviewed: 2
+  risks_identified: 4
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'Nenhum secret real commitado (verificado via git ls-files). Convenção NEXT_PUBLIC_* respeitada. Sem superfície de ataque nova nesta story.'
+  performance:
+    status: PASS
+    notes: 'N/A — página de health-check estática, trivial. Performance real começa a importar na Story 1.3 (ISR).'
+  reliability:
+    status: PASS
+    notes: 'Build/test/lint reproduzidos do zero nesta review, todos passando. CI gate agora cobre lint+test+build (gap de lint corrigido).'
+  maintainability:
+    status: PASS
+    notes: 'Documentação exaustiva nas Completion Notes. Estrutura de arquivos conforme Architecture Seção 10.'
+
+recommendations:
+  immediate: []
+  future:
+    - action: 'Nenhum achado desta review ficou pendente — todos corrigidos diretamente'
+      refs: []
