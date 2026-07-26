@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createPublicSupabaseClient } from '@/lib/supabase/public';
 
 // Tipos conceituais (Architecture Seção 4.1/4.2) — camelCase, mapeados a partir
 // das colunas snake_case do banco (schema-design.md Seção 4).
@@ -108,7 +108,7 @@ function mapProtocolRow(row: ProtocolRow, productIds: string[]): Protocol {
  * (junção única — Architecture 7.1, não são colunas diretas).
  */
 export async function getProducts(): Promise<Product[]> {
-  const supabase = await createServerSupabaseClient();
+  const supabase = createPublicSupabaseClient();
 
   const [{ data: products, error: productsError }, { data: junctions, error: junctionsError }] =
     await Promise.all([
@@ -138,7 +138,7 @@ export async function getProductBySlug(slug: string): Promise<Product | null> {
  * `productIds` resolvido via `protocol_products`.
  */
 export async function getProtocols(): Promise<Protocol[]> {
-  const supabase = await createServerSupabaseClient();
+  const supabase = createPublicSupabaseClient();
 
   const [{ data: protocols, error: protocolsError }, { data: junctions, error: junctionsError }] =
     await Promise.all([

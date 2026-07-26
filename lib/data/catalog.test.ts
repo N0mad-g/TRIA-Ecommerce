@@ -4,17 +4,6 @@
 // jsdom não expõe `fetch` global (usado pelo @supabase/supabase-js) — este
 // teste não toca DOM, então `node` é o ambiente correto (e resolve o gap).
 
-// Mock de next/headers: cookies() só funciona dentro de request scope real do
-// Next.js (Server Component/Route Handler), não em ambiente de teste puro.
-// Seguro pra esta story: as políticas RLS de products/protocols/protocol_products
-// são SELECT público (schema-design.md Seção 8), não dependem de sessão.
-jest.mock('next/headers', () => ({
-  cookies: async () => ({
-    getAll: () => [],
-    set: () => {},
-  }),
-}));
-
 import { getProducts, getProtocols, getProductBySlug } from './catalog';
 
 // Timeout de integração real (rede) — o default de 5s do Jest é curto pra
