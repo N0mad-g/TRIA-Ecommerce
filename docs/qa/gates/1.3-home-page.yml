@@ -1,0 +1,61 @@
+schema: 1
+story: '1.3'
+story_title: 'Home Page'
+gate: PASS
+status_reason: '7/7 ACs verificadas (testes de integração real + RTL/jest-axe + verificação manual via browser). 2 achados medium encontrados e corrigidos diretamente na review: RLS/CHECK constraint de leads sem cobertura de teste (mesmo padrão do achado da Story 1.2) e consentGiven hardcoded em LeadForm mascarando o estado real do checkbox.'
+reviewer: 'Quinn (Test Architect)'
+updated: '2026-07-26T00:00:00Z'
+
+top_issues:
+  - issue: 'Migration de leads afirma RLS sem SELECT e CHECK(consent_given=true) via comentários, mas nenhum teste verificava nenhuma das duas garantias empiricamente'
+    severity: medium
+    status: fixed
+    suggested_owner: qa
+  - issue: 'LeadForm enviava consentGiven:true fixo pro submitLead(), não o valor real do checkbox — só seguro por causa do gate de UI (disabled), não porque o dado refletisse o estado real'
+    severity: medium
+    status: fixed
+    suggested_owner: qa
+  - issue: 'Validação de responsividade (AC5) feita via árvore de acessibilidade + texto renderizado, não captura visual real (Browser pane indisponível na sessão do dev)'
+    severity: low
+    status: open
+    suggested_owner: dev
+  - issue: 'Nenhum teste trava a regra de "3 protocolos" na composição da Home — hoje garantido só pelo dado real do seed (Story 1.2), não por asserção de teste'
+    severity: low
+    status: open
+    suggested_owner: dev
+
+waiver: { active: false }
+
+quality_score: 80
+expires: '2026-08-09T00:00:00Z'
+
+evidence:
+  tests_reviewed: 34
+  risks_identified: 4
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'RLS de leads verificada empiricamente nesta review (INSERT público funciona, SELECT retorna vazio, CHECK consent_given=true rejeita no banco independente da validação de aplicação). apiError() usado em toda resposta de erro, nunca vaza detalhe interno. Sem SQL injection/XSS. Nenhum secret novo commitado.'
+  performance:
+    status: PASS
+    notes: 'ISR (revalidate=3600) confirmado funcionando de fato via npm run build (/ como Static, Revalidate 1h) após o dev corrigir o client que anulava o ISR. Sem essa correção seria regressão de performance silenciosa, não capturada por nenhum teste automatizado.'
+  reliability:
+    status: PASS
+    notes: '34/34 testes passando (31 do dev + 3 adicionados nesta review), lint limpo, build limpo. Testes de integração real contra Supabase dev, não mocks, para migration/rota/RLS.'
+  maintainability:
+    status: CONCERNS
+    notes: 'Copy de WhyTria/Benefits/Testimonials é placeholder de trabalho (decisão documentada, aceitável pro MVP) — precisa ser substituída pelo time de conteúdo antes do lançamento real. Não é dívida técnica, é dívida de conteúdo, mas vale rastrear.'
+
+recommendations:
+  immediate: []
+  future:
+    - action: 'Passe visual real (screenshot) de AC5 em mobile/desktop antes do lançamento'
+      refs: ['components/hero/HeroCarousel.tsx', 'components/home/Benefits.tsx', 'components/protocol/ProtocolShowcase.tsx', 'components/product/ProductShowcase.tsx']
+    - action: 'Asserção explícita de "3 protocolos" na composição da Home, pra travar regressão futura do dado de catálogo'
+      refs: ['app/(marketing)/page.test.tsx']
+    - action: 'Substituir copy placeholder de WhyTria/Benefits/Testimonials pela copy final do time de conteúdo'
+      refs: ['components/home/WhyTria.tsx', 'components/home/Benefits.tsx', 'components/home/Testimonials.tsx']

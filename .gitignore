@@ -41,6 +41,9 @@ Thumbs.db
 # Vercel
 .vercel
 
+# graphify (code-graph tool, generated analysis output — not app code)
+graphify-out/
+
 # TypeScript
 *.tsbuildinfo
 next-env.d.ts

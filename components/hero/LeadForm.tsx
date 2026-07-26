@@ -35,7 +35,7 @@ export function LeadForm() {
     setFeedback(null);
 
     try {
-      await submitLead({ contact: contact.trim(), contactType, consentGiven: true });
+      await submitLead({ contact: contact.trim(), contactType, consentGiven });
       setStatus('success');
       setFeedback('Recebemos seu contato! Em breve entraremos em contato.');
       setContact('');

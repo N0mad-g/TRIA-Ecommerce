@@ -72,3 +72,36 @@ describe('RLS — catálogo (products/protocols/protocol_products) bloqueia escr
     expect(data?.name).toBe('Shampoo Antiqueda'); // não virou "Nome Alterado Sem Permissão"
   });
 });
+
+// Achado da revisão QA da Story 1.3: a migration de `leads`
+// (20260726183028_leads_schema.sql) afirma duas garantias de segurança via
+// COMMENT ON POLICY/COMMENT ON COLUMN — RLS sem policy de SELECT, e
+// CHECK (consent_given = true) como defesa em profundidade — mas nenhum teste
+// verificava nenhuma das duas empiricamente, mesmo padrão do achado da 1.2
+// (RLS write-blocking nunca testada).
+describe('RLS — leads (Story 1.3) bloqueia leitura via anon key e o banco reforça consentimento', () => {
+  it('SELECT em leads é bloqueado pela RLS (lista vazia, não erro) — ninguém lê a própria submissão de volta', async () => {
+    const { data, error } = await supabase.from('leads').select('*');
+    expect(error).toBeNull();
+    expect(data).toEqual([]); // deny-by-default: sem policy de SELECT pra anon/authenticated
+  });
+
+  it('INSERT com consent_given=false é bloqueado pelo CHECK constraint do banco, mesmo contornando a validação da aplicação', async () => {
+    const { error } = await supabase.from('leads').insert({
+      contact: 'rls-test-consent-false@example.com',
+      contact_type: 'email',
+      consent_given: false,
+    });
+    expect(error).not.toBeNull();
+    expect(error?.code).toBe('23514'); // check_violation — leads_consent_given_check
+  });
+
+  it('INSERT com consent_given=true é aceito (RLS INSERT WITH CHECK(true) permite o fluxo real)', async () => {
+    const { error } = await supabase.from('leads').insert({
+      contact: `rls-test-consent-true-${Date.now()}@example.com`,
+      contact_type: 'email',
+      consent_given: true,
+    });
+    expect(error).toBeNull();
+  });
+});
